@@ -115,6 +115,7 @@ void IncidentController::beginCapture(const Trigger &t, uint64_t windowFrom) {
   inc.detectedNs = t.detectedNs;
   inc.requestedPrehistoryNs = config_.prehistoryNs;
   inc.windowStartNs = windowFrom;
+  inc.screenLabel = screen_.load(std::memory_order_relaxed);
   // Pin prehistory now: a long hang can overwrite it before recovery.
   inc.snapshot = recorder_.snapshot(windowFrom, t.detectedNs);
   current_ = std::move(inc);

@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Linking, Platform, Pressable, Settings, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as TI from 'react-native-thread-inspector';
 
@@ -9,6 +11,10 @@ const capabilities = TI.start({
   tailAfterRecoveryMs: 500,
   cooldownMs: 1_500,
 });
+
+type Routes = { Home: undefined; Feed: undefined };
+const navigationRef = createNavigationContainerRef<Routes>();
+const Stack = createNativeStackNavigator<Routes>();
 
 function busyLoop(ms: number) {
   const end = Date.now() + ms;
@@ -50,6 +56,13 @@ const scenarios: { id: string; title: string; run: () => void | Promise<void> }[
     },
   },
   {
+    id: 'nav-heavy',
+    title: '6. Navigate to a heavy screen (400 ms render)',
+    run: () => {
+      if (navigationRef.isReady()) navigationRef.navigate('Feed');
+    },
+  },
+  {
     id: 'main-block',
     title: '4. Main thread busy (300 ms)',
     run: () => TI.debug.simulateMainThreadBlock(300),
@@ -61,7 +74,8 @@ type Summary = { path: string; text: string };
 function summarize(path: string): Summary {
   try {
     const { report } = TI.readIncident(path);
-    const lines: string[] = [`#${report.id} · ${report.window.end_reason}`];
+    const screen = report.screen?.at_detection ?? 'no screen';
+    const lines: string[] = [`#${report.id} · ${report.window.end_reason} · ${screen}`];
     report.triggers.forEach((t: any, i: number) => {
       const dur = t.duration_ns == null ? 'unrecovered' : `${Math.round(t.duration_ns / 1e6)} ms`;
       lines.push(`${t.source} on ${t.thread_name || `tid ${t.tid}`}: ${dur}`);
@@ -77,13 +91,13 @@ function summarize(path: string): Summary {
   }
 }
 
-export default function App() {
+function HomeScreen() {
   const [incidents, setIncidents] = useState<Summary[]>([]);
   const [status, setStatus] = useState('idle');
 
   useEffect(() => {
     // Lets scripts drive scenarios: rntiexample://scenario/<id>
-    const run = (url: string | null) => {
+    const run = (url?: string | null) => {
       const id = url?.match(/scenario\/([\w-]+)/)?.[1];
       scenarios.find((s) => s.id === id)?.run();
     };
@@ -157,3 +171,31 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#f2f3f5', padding: 10, borderRadius: 6, marginBottom: 8 },
   mono: { fontFamily: 'monospace', fontSize: 11, color: '#222' },
 });
+
+function FeedScreen() {
+  // Stands in for an expensive first render: no explicit span, only the navigation instrumentation.
+  const rows = useMemo(() => {
+    busyLoop(400);
+    return Array.from({ length: 20 }, (_, i) => `row ${i}`);
+  }, []);
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      {rows.map((r) => (
+        <Text key={r} style={styles.mono}>
+          {r}
+        </Text>
+      ))}
+    </ScrollView>
+  );
+}
+
+export default function App() {
+  return (
+    <NavigationContainer ref={navigationRef} onReady={() => TI.trackNavigation(navigationRef)}>
+      <Stack.Navigator>
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Feed" component={FeedScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}

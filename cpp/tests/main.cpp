@@ -361,6 +361,30 @@ static void testUnrecoveredStartupHangUsesHint() {
   CHECK(rig.inbox.items[0].triggers[0].tid == jsTid);
 }
 
+static void testScreenContextInReport() {
+  Rig rig(fastConfig());
+  const uint32_t feed = rig.rec.intern("Feed");
+  const uint32_t detail = rig.rec.intern("Detail");
+  rig.watchdog.start();
+  std::this_thread::sleep_for(60ms);
+  rig.js.post([&] {
+    rig.rec.instant(Category::Navigation, feed);
+    rig.controller.setScreen(feed);
+    std::this_thread::sleep_for(300ms);
+    rig.rec.instant(Category::Navigation, detail);
+    rig.controller.setScreen(detail);
+  });
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Incident &inc = rig.inbox.items[0];
+  CHECK(inc.screenLabel == feed);
+  auto trace = resolve(inc);
+  const std::string report = incidentReportJson(inc, trace, analyze(inc, trace), rig.rec, {});
+  CHECK(report.find("\"at_detection\":\"Feed\"") != std::string::npos);
+  CHECK(report.find("\"screen\":\"Detail\"") != std::string::npos);
+}
+
 static void testPrehistoryPinnedDuringFlood() {
   Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
   const uint32_t marker = rig.rec.intern("flood.marker");
@@ -473,6 +497,7 @@ int main() {
       {"stall before first ack names thread", testStallBeforeFirstAck},
       {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
       {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},
+      {"screen context in report", testScreenContextInReport},
       {"prehistory pinned during flood", testPrehistoryPinnedDuringFlood},
       {"unrecovered hang hits max duration", testUnrecoveredHangHitsMaxDuration},
       {"export and writer", testExportAndWriter},

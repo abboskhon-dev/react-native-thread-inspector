@@ -203,4 +203,8 @@ JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeLongTask(JNIE
   if (auto *i = Inspector::shared(); i && start > 0 && dur > 0) i->reportLongTask(start, dur);
 }
 
+JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeMarkScreen(JNIEnv *, jclass, jint label) {
+  if (auto *i = Inspector::shared()) i->markScreen(static_cast<uint32_t>(label));
+}
+
 } // extern "C"

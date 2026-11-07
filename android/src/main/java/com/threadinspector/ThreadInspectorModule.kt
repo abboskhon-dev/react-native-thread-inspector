@@ -119,6 +119,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     return 0.0
   }
 
+  override fun markScreen(labelId: Double): Double {
+    NativeBridge.nativeMarkScreen(labelId.toInt())
+    return 0.0
+  }
+
   override fun listIncidents(): WritableArray {
     val out = Arguments.createArray()
     incidentDir().listFiles { f -> f.isDirectory && f.name.startsWith("incident-") }

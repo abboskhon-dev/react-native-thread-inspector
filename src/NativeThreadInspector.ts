@@ -17,6 +17,7 @@ export interface Spec extends TurboModule {
   instant(labelId: number, arg: number): number;
   completeSpan(labelId: number, startNs: number, durationNs: number, flags: number): number;
   reportLongTask(startNs: number, durationNs: number): number;
+  markScreen(labelId: number): number;
   listIncidents(): string[];
   readIncidentFile(path: string, file: string): string;
   simulateNativeBlock(ms: number): number;

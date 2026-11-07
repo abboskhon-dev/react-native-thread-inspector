@@ -36,6 +36,7 @@ class Inspector {
   void setForeground(bool foreground);
   // Call from the RN JS thread so a stall before the first probe ack still has a thread.
   void markJsThread();
+  void markScreen(uint32_t label);
   void reportLongTask(uint64_t startNs, uint64_t durNs);
 
   Recorder &recorder() noexcept { return recorder_; }
@@ -53,6 +54,8 @@ class Inspector {
   Watchdog watchdog_;
   std::shared_ptr<std::atomic<bool>> named_[2];
   uint32_t longTaskLabel_ = 0;
+  uint32_t foregroundLabel_ = 0;
+  uint32_t backgroundLabel_ = 0;
 };
 
 } // namespace rnti

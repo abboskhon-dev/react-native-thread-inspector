@@ -31,6 +31,8 @@ Inspector::Inspector(InspectorConfig config, Poster js, Poster main, IncidentWri
   named_[0] = std::make_shared<std::atomic<bool>>(false);
   named_[1] = std::make_shared<std::atomic<bool>>(false);
   longTaskLabel_ = recorder_.intern("js.long_task");
+  foregroundLabel_ = recorder_.intern("app.foreground");
+  backgroundLabel_ = recorder_.intern("app.background");
   watchdog_.addChannel({.name = "js", .source = TriggerSource::JsWatchdog, .post = namedPoster(std::move(js), 0, "RN JS"),
                         .intervalNs = config.probeIntervalNs, .thresholdNs = config.jsThresholdNs});
   watchdog_.addChannel({.name = "main", .source = TriggerSource::MainWatchdog,
@@ -60,7 +62,15 @@ void Inspector::stop() {
   recorder_.setEnabled(false);
 }
 
-void Inspector::setForeground(bool foreground) { watchdog_.setForeground(foreground); }
+void Inspector::setForeground(bool foreground) {
+  recorder_.instant(Category::Lifecycle, foreground ? foregroundLabel_ : backgroundLabel_);
+  watchdog_.setForeground(foreground);
+}
+
+void Inspector::markScreen(uint32_t label) {
+  recorder_.instant(Category::Navigation, label);
+  controller_.setScreen(label);
+}
 
 void Inspector::markJsThread() {
   if (!named_[0]->exchange(true)) recorder_.nameCurrentThread("RN JS");

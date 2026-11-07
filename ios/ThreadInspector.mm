@@ -288,6 +288,12 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   return @0;
 }
 
+- (NSNumber *)markScreen:(double)labelId
+{
+  if (auto *i = Inspector::shared()) i->markScreen(static_cast<uint32_t>(labelId));
+  return @0;
+}
+
 - (NSArray<NSString *> *)listIncidents
 {
   NSString *dir = incidentDir();

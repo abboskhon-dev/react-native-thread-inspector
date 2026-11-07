@@ -152,7 +152,6 @@ std::string chromeTraceJson(const Incident &incident, const ResolvedTrace &trace
 std::string incidentReportJson(const Incident &incident, const ResolvedTrace &trace,
                                const std::vector<TriggerAnalysis> &analysis, const Recorder &recorder,
                                const ExportMetadata &meta) {
-  (void)trace;
   std::unordered_map<uint32_t, std::string> names;
   for (auto &[tid, name] : recorder.threadNames()) names[tid] = name;
   auto threadName = [&](uint32_t tid) -> std::string {
@@ -173,6 +172,16 @@ std::string incidentReportJson(const Incident &incident, const ResolvedTrace &tr
   w.key("prehistory_relative_to").str("detection time, which can be later than stall onset");
   w.key("end_reason").str(endReasonName(incident.endReason));
   w.endObject();
+
+  // Screen names are static route names, never route params.
+  w.key("screen").beginObject().key("at_detection");
+  if (incident.screenLabel) w.str(recorder.labelName(incident.screenLabel)); else w.null();
+  w.key("transitions").beginArray();
+  for (const auto &e : trace.instants) {
+    if (e.category != Category::Navigation) continue;
+    w.beginObject().key("screen").str(recorder.labelName(e.label)).key("ts_ns").u64(e.ts).endObject();
+  }
+  w.endArray().endObject();
 
   w.key("triggers").beginArray();
   for (const auto &t : incident.triggers) {

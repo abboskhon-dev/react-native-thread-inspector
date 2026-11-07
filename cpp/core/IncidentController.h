@@ -3,6 +3,7 @@
 #include "Platform.h"
 #include "Recorder.h"
 
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -35,6 +36,7 @@ struct Incident {
   uint64_t captureEndNs = 0;
   uint64_t requestedPrehistoryNs = 0;
   EndReason endReason = EndReason::Recovered;
+  uint32_t screenLabel = 0; // 0 = no screen reported
   Snapshot snapshot;
 };
 
@@ -64,6 +66,7 @@ class IncidentController {
   void stallEnded(TriggerSource source, uint64_t endNs, uint32_t ackTid = 0);
   void longTaskCompleted(uint32_t tid, uint64_t startNs, uint64_t durNs, uint64_t deliveredNs);
   void tick(uint64_t now);
+  void setScreen(uint32_t label) noexcept { screen_.store(label, std::memory_order_relaxed); }
 
   // Earliest time tick() has work to do; 0 when none.
   uint64_t nextDeadlineNs() const;
@@ -78,6 +81,7 @@ class IncidentController {
   void emit(std::optional<Incident> incident);
 
   Recorder &recorder_;
+  std::atomic<uint32_t> screen_{0};
   const IncidentConfig config_;
   Sink sink_;
   const uint32_t captureLabel_;

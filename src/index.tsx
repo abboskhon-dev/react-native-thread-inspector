@@ -130,6 +130,47 @@ export function mark(label: string, arg = 0): void {
   Native.instant(labelId(label), arg);
 }
 
+let currentScreen: string | undefined;
+
+// Route names only; params can hold user data and are never recorded.
+export function screenChanged(routeName: string): void {
+  if (!routeName || routeName === currentScreen) return;
+  currentScreen = routeName;
+  Native.markScreen(labelId(routeName));
+}
+
+export type NavigationContainerLike = {
+  addListener(event: 'state' | '__unsafe_action__', listener: (e: any) => void): () => void;
+  getCurrentRoute(): { name: string } | undefined;
+};
+
+// React Navigation: call from NavigationContainer `onReady` with the container ref.
+// The transition span runs from action dispatch to the committed state, so it covers the new screen's render.
+export function trackNavigation(container: NavigationContainerLike): () => void {
+  let pending: SpanToken | null = null;
+  const settle = () => {
+    if (pending) end(pending);
+    pending = null;
+  };
+  const report = () => {
+    settle();
+    const name = container.getCurrentRoute()?.name;
+    if (name) screenChanged(name);
+  };
+  report();
+  const offState = container.addListener('state', report);
+  const offAction = container.addListener('__unsafe_action__', (e) => {
+    if (e?.data?.noop) return;
+    settle();
+    pending = begin(`navigation.${String(e?.data?.action?.type ?? 'action').toLowerCase()}`);
+  });
+  return () => {
+    settle();
+    offState();
+    offAction();
+  };
+}
+
 export function onIncidentSaved(listener: (event: IncidentSavedEvent) => void): () => void {
   const sub = Native.onIncidentSaved(listener);
   return () => sub.remove();
