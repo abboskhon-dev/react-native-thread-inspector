@@ -29,6 +29,7 @@ void writeFlags(JsonWriter &w, uint16_t f) {
   if (f & flags::Sampled) w.key("sampled").boolean(true);
   if (f & flags::Error) w.key("error").boolean(true);
   if (f & flags::JsDelivery) w.key("js_delivery_time").boolean(true);
+  if (f & flags::Envelope) w.key("observation_envelope").boolean(true);
 }
 
 std::string catName(Category c) { return std::string("rnti.") + categoryName(c); }

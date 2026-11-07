@@ -37,6 +37,8 @@ class Watchdog {
   void start();
   void stop();
   void setForeground(bool foreground);
+  // Thread a channel's acks will run on, used until the first ack arrives.
+  void hintThread(size_t channel, uint32_t tid);
 
  private:
   struct Wake {
@@ -51,6 +53,7 @@ class Watchdog {
     std::atomic<uint64_t> ackedSeq{0};
     std::atomic<uint64_t> ackNs{0};
     std::atomic<uint32_t> ackTid{0};
+    std::atomic<uint32_t> tidHint{0};
   };
 
   struct Channel {

@@ -301,6 +301,66 @@ static void testBackgroundSuppressesIncidents() {
   rig.watchdog.stop();
 }
 
+static void testStallBeforeFirstAck() {
+  Rig rig(fastConfig());
+  const uint32_t heavy = rig.rec.intern("startup.work");
+  rig.js.post([&] {
+    const uint64_t span = rig.rec.begin(Category::Js, heavy);
+    std::this_thread::sleep_for(300ms);
+    rig.rec.end(Category::Js, heavy, span);
+  });
+  rig.watchdog.start();
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Incident &inc = rig.inbox.items[0];
+  CHECK(inc.triggers.size() == 1);
+  CHECK(inc.triggers[0].tid != 0);
+  auto trace = resolve(inc);
+  auto analysis = analyze(inc, trace);
+  bool contained = false;
+  for (const auto &f : analysis[0].findings) contained |= f.span.label == heavy && f.relation == Relation::DirectContainment;
+  CHECK(contained);
+}
+
+static void testBackgroundMidStallEndsLifecycle() {
+  Rig rig(fastConfig());
+  rig.watchdog.start();
+  std::this_thread::sleep_for(60ms);
+  rig.js.post([] { std::this_thread::sleep_for(600ms); });
+  std::this_thread::sleep_for(300ms);
+  CHECK(rig.controller.state() == ControllerState::Capturing);
+  rig.watchdog.setForeground(false);
+  CHECK(rig.inbox.waitFor(1, 1s));
+  rig.js.sync();
+  rig.watchdog.setForeground(true);
+  std::this_thread::sleep_for(100ms);
+  rig.watchdog.stop();
+  CHECK(rig.inbox.items.size() == 1);
+  if (rig.inbox.items.empty()) return;
+  const Incident &inc = rig.inbox.items[0];
+  CHECK(inc.endReason == EndReason::Lifecycle);
+  CHECK(inc.triggers[0].endNs == 0);
+}
+
+static void testUnrecoveredStartupHangUsesHint() {
+  Rig rig(fastConfig());
+  uint32_t jsTid = 0;
+  rig.js.post([&] { jsTid = currentTid(); });
+  rig.js.sync();
+  rig.js.post([] { std::this_thread::sleep_for(500ms); });
+  rig.watchdog.hintThread(0, jsTid);
+  rig.watchdog.start();
+  std::this_thread::sleep_for(300ms);
+  rig.watchdog.setForeground(false);
+  CHECK(rig.inbox.waitFor(1, 1s));
+  rig.js.sync();
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  CHECK(rig.inbox.items[0].triggers[0].endNs == 0);
+  CHECK(rig.inbox.items[0].triggers[0].tid == jsTid);
+}
+
 static void testPrehistoryPinnedDuringFlood() {
   Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
   const uint32_t marker = rig.rec.intern("flood.marker");
@@ -410,6 +470,9 @@ int main() {
       {"js stall detected while blocked", testJsStallDetectedWhileBlocked},
       {"long task merges into incident", testLongTaskMergesIntoIncident},
       {"background suppresses incidents", testBackgroundSuppressesIncidents},
+      {"stall before first ack names thread", testStallBeforeFirstAck},
+      {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
+      {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},
       {"prehistory pinned during flood", testPrehistoryPinnedDuringFlood},
       {"unrecovered hang hits max duration", testUnrecoveredHangHitsMaxDuration},
       {"export and writer", testExportAndWriter},

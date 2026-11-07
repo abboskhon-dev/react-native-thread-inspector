@@ -36,6 +36,8 @@ constexpr uint16_t Incomplete = 1 << 2;
 constexpr uint16_t Sampled = 1 << 3;
 constexpr uint16_t Error = 1 << 4;
 constexpr uint16_t JsDelivery = 1 << 5;
+// Observation interval (long task, run-loop activity); context, not work.
+constexpr uint16_t Envelope = 1 << 6;
 } // namespace flags
 
 struct Event {

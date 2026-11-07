@@ -87,7 +87,7 @@ uint64_t overlap(uint64_t a0, uint64_t a1, uint64_t b0, uint64_t b1) {
 }
 
 bool isEvidence(const ResolvedSpan &s) {
-  return s.category != Category::Watchdog && s.category != Category::Incident;
+  return s.category != Category::Watchdog && s.category != Category::Incident && !(s.flags & flags::Envelope);
 }
 
 uint64_t unionLength(std::vector<std::pair<uint64_t, uint64_t>> intervals) {

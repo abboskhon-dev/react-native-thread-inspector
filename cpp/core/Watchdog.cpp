@@ -57,6 +57,10 @@ void Watchdog::setForeground(bool foreground) {
   wake_->cv.notify_one();
 }
 
+void Watchdog::hintThread(size_t channel, uint32_t tid) {
+  if (channel < channels_.size()) channels_[channel].ack->tidHint.store(tid, std::memory_order_relaxed);
+}
+
 void Watchdog::resetChannels(uint64_t now) {
   for (auto &ch : channels_) {
     ch.ack->expectedSeq.store(0);
@@ -81,13 +85,14 @@ void Watchdog::service(Channel &ch, uint64_t now) {
       e.tid = ch.lastAckTid;
       e.arg0 = ch.seq;
       recorder_.recordControl(e);
-      if (ch.stalled) controller_.stallEnded(ch.config.source, ackNs);
+      if (ch.stalled) controller_.stallEnded(ch.config.source, ackNs, ch.lastAckTid);
       ch.stalled = false;
       ch.outstanding = false;
       ch.lastAckNs = ackNs;
       ch.nextProbeNs = ackNs + ch.config.intervalNs;
     } else if (!ch.stalled && now - ch.enqueueNs >= ch.config.thresholdNs) {
       ch.stalled = true;
+      if (!ch.lastAckTid) ch.lastAckTid = ch.ack->tidHint.load(std::memory_order_relaxed);
       Event e;
       e.ts = now;
       e.kind = EventKind::Instant;

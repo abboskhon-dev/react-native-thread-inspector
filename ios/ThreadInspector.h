@@ -1,5 +1,5 @@
 #import <ThreadInspectorSpec/ThreadInspectorSpec.h>
 
-@interface ThreadInspector : NSObject <NativeThreadInspectorSpec>
+@interface ThreadInspector : NativeThreadInspectorSpecBase <NativeThreadInspectorSpec>
 
 @end

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Settings, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as TI from 'react-native-thread-inspector';
 
 const capabilities = TI.start({
@@ -43,6 +43,13 @@ const scenarios: { id: string; title: string; run: () => void | Promise<void> }[
     },
   },
   {
+    id: 'js-hang',
+    title: '5. Long JS hang (3 s)',
+    run: () => {
+      TI.measureSync('demo.longHang', () => busyLoop(3_000));
+    },
+  },
+  {
     id: 'main-block',
     title: '4. Main thread busy (300 ms)',
     run: () => TI.debug.simulateMainThreadBlock(300),
@@ -73,6 +80,23 @@ function summarize(path: string): Summary {
 export default function App() {
   const [incidents, setIncidents] = useState<Summary[]>([]);
   const [status, setStatus] = useState('idle');
+
+  useEffect(() => {
+    // Lets scripts drive scenarios: rntiexample://scenario/<id>
+    const run = (url: string | null) => {
+      const id = url?.match(/scenario\/([\w-]+)/)?.[1];
+      scenarios.find((s) => s.id === id)?.run();
+    };
+    Linking.getInitialURL().then(run);
+    // iOS launch argument: -rntiScenario <id>
+    const launchScenario = Platform.OS === 'ios' ? Settings.get('rntiScenario') : null;
+    const timer = launchScenario ? setTimeout(() => run(`scenario/${launchScenario}`), 1500) : undefined;
+    const sub = Linking.addEventListener('url', (e) => run(e.url));
+    return () => {
+      sub.remove();
+      clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const refresh = () => setIncidents(TI.listIncidents().slice(0, 6).map(summarize));

@@ -23,6 +23,7 @@ add_library(rnti_core STATIC
   core/Export.cpp
   core/IncidentController.cpp
   core/IncidentWriter.cpp
+  core/Inspector.cpp
   core/Recorder.cpp
   core/Watchdog.cpp
 )

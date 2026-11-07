@@ -61,7 +61,7 @@ class IncidentController {
 
   void stallBegan(TriggerSource source, uint32_t tid, uint64_t onsetNs, uint64_t onsetLowerBoundNs,
                   uint64_t detectedNs);
-  void stallEnded(TriggerSource source, uint64_t endNs);
+  void stallEnded(TriggerSource source, uint64_t endNs, uint32_t ackTid = 0);
   void longTaskCompleted(uint32_t tid, uint64_t startNs, uint64_t durNs, uint64_t deliveredNs);
   void tick(uint64_t now);
 

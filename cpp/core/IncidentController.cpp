@@ -181,12 +181,14 @@ void IncidentController::stallBegan(TriggerSource source, uint32_t tid, uint64_t
   }
 }
 
-void IncidentController::stallEnded(TriggerSource source, uint64_t endNs) {
+void IncidentController::stallEnded(TriggerSource source, uint64_t endNs, uint32_t ackTid) {
   std::lock_guard<std::mutex> lk(mu_);
   if (state_ != ControllerState::Capturing) return;
   for (auto it = current_->triggers.rbegin(); it != current_->triggers.rend(); ++it) {
     if (it->source == source && it->endNs == 0) {
       it->endNs = endNs;
+      // A stall before the first ack has no thread yet; the recovering ack names it.
+      if (it->tid == 0) it->tid = ackTid;
       return;
     }
   }

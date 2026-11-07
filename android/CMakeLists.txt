@@ -13,6 +13,7 @@ add_library(rnti SHARED
   ${CORE_DIR}/Export.cpp
   ${CORE_DIR}/IncidentController.cpp
   ${CORE_DIR}/IncidentWriter.cpp
+  ${CORE_DIR}/Inspector.cpp
   ${CORE_DIR}/Recorder.cpp
   ${CORE_DIR}/Watchdog.cpp
 )
