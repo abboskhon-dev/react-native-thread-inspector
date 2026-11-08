@@ -8,6 +8,12 @@
 #include "Platform.h"
 #include "RntiPerfLogger.h"
 
+#if __has_include(<hermes/hermes.h>)
+#include <hermes/hermes.h>
+#define RNTI_HAS_HERMES 1
+#endif
+
+#include <chrono>
 #include <mutex>
 #include <pthread.h>
 #include <sys/sysctl.h>
@@ -98,6 +104,22 @@ uint64_t msField(NSDictionary *d, NSString *key, uint64_t fallback) {
 
 NSDictionary *status(NSString *s, NSString *reason = nil) {
   return reason ? @{@"status" : s, @"reason" : reason} : @{@"status" : s};
+}
+
+NSDictionary *gSamplingStart;
+
+// Pairs the monotonic recorder clock with wall time so wall-clock profiles can be mapped later.
+NSDictionary *clockAnchor() {
+  const uint64_t before = rnti::nowNs();
+  const auto wall = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+  const uint64_t after = rnti::nowNs();
+  return @{@"mono_ns" : @((before + after) / 2), @"wall_us" : @(wall), @"uncertainty_ns" : @((after - before) / 2)};
+}
+
+NSString *jsonString(NSDictionary *d) {
+  NSData *data = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 }
 
 void busyWait(double ms) {
@@ -299,6 +321,44 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
 {
   if (auto *i = Inspector::shared()) i->markScreen(static_cast<uint32_t>(labelId));
   return @0;
+}
+
+- (NSString *)startHermesSampling:(double)hz
+{
+  NSDictionary *anchor = clockAnchor();
+#if RNTI_HAS_HERMES
+  auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
+  if (!root) return jsonString(@{@"status" : @"unavailable", @"reason" : @"IHermesRootAPI not available"});
+  root->enableSamplingProfiler(hz > 0 ? hz : 100);
+  gSamplingStart = anchor;
+  if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.start"));
+  return jsonString(@{@"status" : @"available", @"anchor" : anchor});
+#else
+  return jsonString(@{@"status" : @"unavailable", @"reason" : @"Hermes headers not found"});
+#endif
+}
+
+- (NSString *)stopHermesSampling
+{
+#if RNTI_HAS_HERMES
+  if (!gSamplingStart) return jsonString(@{@"status" : @"error", @"reason" : @"not sampling"});
+  auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
+  if (!root) return jsonString(@{@"status" : @"unavailable"});
+  if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.stop"));
+  NSString *dir = [[incidentDir() stringByDeletingLastPathComponent]
+      stringByAppendingPathComponent:[NSString stringWithFormat:@"rnti-sessions/session-%lld", (long long)(rnti::nowNs() / 1000000)]];
+  [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+  NSString *profile = [dir stringByAppendingPathComponent:@"hermes.cpuprofile"];
+  root->dumpSampledTraceToFile(profile.UTF8String);
+  root->disableSamplingProfiler();
+  NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : @"hermes.cpuprofile",
+                            @"profile_clock" : @"as emitted by Hermes; map with the anchors"};
+  [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
+  gSamplingStart = nil;
+  return jsonString(@{@"status" : @"available", @"path" : dir});
+#else
+  return jsonString(@{@"status" : @"unavailable"});
+#endif
 }
 
 - (NSArray<NSString *> *)listIncidents

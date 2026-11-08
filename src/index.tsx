@@ -189,6 +189,15 @@ export function readIncident(path: string): { report: any; trace: string } {
   };
 }
 
+export type SamplingResult = { status: CapabilityStatus | 'error'; path?: string; reason?: string };
+
+// Bounded diagnostic session: start before reproducing; samples cannot be recovered for a stall that already ended.
+// Hermes keeps one global sampler, so this can stop another tool's session.
+export const sampling = {
+  start: (hz = 100): SamplingResult => JSON.parse(Native.startHermesSampling(hz)),
+  stop: (): SamplingResult => JSON.parse(Native.stopHermesSampling()),
+};
+
 export const debug = {
   simulateNativeBlock: (ms: number) => Native.simulateNativeBlock(ms),
   simulateMainThreadBlock: (ms: number) => Native.simulateMainThreadBlock(ms),

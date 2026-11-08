@@ -11,6 +11,7 @@ internal object NativeBridge {
   const val CATEGORY_JS = 1
   const val CATEGORY_NATIVE = 2
   const val CATEGORY_MAIN = 3
+  const val CATEGORY_INSPECTOR = 10
   const val CATEGORY_USER = 11
 
   private const val JS_CHANNEL = 0

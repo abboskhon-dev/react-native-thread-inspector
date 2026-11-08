@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.facebook.hermes.instrumentation.HermesSamplingProfiler
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
@@ -127,6 +128,54 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun markScreen(labelId: Double): Double {
     NativeBridge.nativeMarkScreen(labelId.toInt())
     return 0.0
+  }
+
+  private var samplingStart: JSONObject? = null
+
+  // Pairs the monotonic recorder clock with wall time so wall-clock profiles can be mapped later.
+  private fun clockAnchor(): JSONObject {
+    val before = NativeBridge.nativeNowNs()
+    val wallUs = System.currentTimeMillis() * 1000
+    val after = NativeBridge.nativeNowNs()
+    return JSONObject().apply {
+      put("mono_ns", (before + after) / 2)
+      put("wall_us", wallUs)
+      put("wall_resolution_us", 1000)
+      put("uncertainty_ns", (after - before) / 2)
+    }
+  }
+
+  override fun startHermesSampling(hz: Double): String {
+    return try {
+      val anchor = clockAnchor()
+      HermesSamplingProfiler.enable()
+      samplingStart = anchor
+      NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.start"), 0)
+      JSONObject().put("status", "available").put("anchor", anchor).put("note", "Android API has no frequency parameter").toString()
+    } catch (e: Throwable) {
+      JSONObject().put("status", "unavailable").put("reason", e.toString()).toString()
+    }
+  }
+
+  override fun stopHermesSampling(): String {
+    val start = samplingStart ?: return JSONObject().put("status", "error").put("reason", "not sampling").toString()
+    return try {
+      NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.stop"), 0)
+      val dir = File(incidentDir().parentFile, "rnti-sessions/session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
+      HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, "hermes.cpuprofile").absolutePath)
+      HermesSamplingProfiler.disable()
+      val session = JSONObject().apply {
+        put("start", start)
+        put("stop", clockAnchor())
+        put("profile", "hermes.cpuprofile")
+        put("profile_clock", "as emitted by Hermes; map with the anchors")
+      }
+      File(dir, "session.json").writeText(session.toString())
+      samplingStart = null
+      JSONObject().put("status", "available").put("path", dir.absolutePath).toString()
+    } catch (e: Throwable) {
+      JSONObject().put("status", "error").put("reason", e.toString()).toString()
+    }
   }
 
   override fun listIncidents(): WritableArray {

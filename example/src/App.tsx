@@ -64,6 +64,18 @@ const scenarios: { id: string; title: string; run: () => void | Promise<void> }[
     },
   },
   {
+    id: 'sampled-js-busy',
+    title: '7. JS computation with Hermes sampling',
+    run: async () => {
+      TI.sampling.start(1000);
+      await new Promise<void>((r) => setTimeout(() => r(), 200));
+      TI.measureSync('demo.sampledParse', () => busyLoop(300));
+      await new Promise<void>((r) => setTimeout(() => r(), 1500));
+      const res = TI.sampling.stop();
+      TI.mark(`sampling.${res.status}`);
+    },
+  },
+  {
     id: 'main-block',
     title: '4. Main thread busy (300 ms)',
     run: () => TI.debug.simulateMainThreadBlock(300),
