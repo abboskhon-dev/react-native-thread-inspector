@@ -3,8 +3,10 @@
 #include "Export.h"
 #include "IncidentController.h"
 #include "IncidentWriter.h"
+#include "JsonWriter.h"
 #include "Platform.h"
 #include "Recorder.h"
+#include "TurboModuleTracker.h"
 #include "Watchdog.h"
 
 #include <atomic>
@@ -385,6 +387,75 @@ static void testScreenContextInReport() {
   CHECK(report.find("\"screen\":\"Detail\"") != std::string::npos);
 }
 
+static void testTurboModuleTracker() {
+  Recorder rec;
+  rec.setEnabled(true);
+  TurboModuleTracker tm(rec);
+  tm.setIgnoredModule("ThreadInspector", "simulate");
+  tm.setEnabled(true);
+  const uint64_t t0 = nowNs();
+
+  tm.syncStart("Storage", "readSync");
+  tm.syncStart("Crypto", "hash");
+  tm.syncEnd("Crypto", "hash", false);
+  tm.syncEnd("Storage", "readSync", false);
+  // Exception path: inner call never reports its end.
+  tm.syncStart("Storage", "writeSync");
+  tm.syncStart("Codec", "decode");
+  tm.syncEnd("Storage", "writeSync", true);
+  tm.syncEnd("Nope", "never", false);
+  tm.syncStart("ThreadInspector", "nowNs");
+  tm.syncEnd("ThreadInspector", "nowNs", false);
+  tm.syncStart("ThreadInspector", "simulateNativeBlock");
+  tm.syncEnd("ThreadInspector", "simulateNativeBlock", false);
+  std::thread([&] {
+    tm.asyncExecStart("Net", "fetch", 7);
+    tm.asyncExecStart("Net", "fetch", 8);
+    tm.asyncExecEnd("Net", "fetch", 8, false);
+    tm.asyncExecEnd("Net", "fetch", 7, false);
+  }).join();
+  std::thread([&] {
+    tm.asyncExecStart("Keyboard", nullptr, 9);
+    tm.asyncExecEnd("Keyboard", nullptr, 9, false);
+    tm.asyncExecStart("ThreadInspector", nullptr, 10);
+    tm.asyncExecEnd("ThreadInspector", nullptr, 10, false);
+  }).join();
+  CHECK(tm.unmatchedEnds() == 1);
+
+  Incident inc;
+  inc.windowStartNs = t0;
+  inc.captureEndNs = nowNs();
+  inc.snapshot = rec.snapshot(t0, inc.captureEndNs);
+  auto trace = resolve(inc);
+  int names = 0, incomplete = 0, errors = 0, fetch = 0, own = 0;
+  for (const auto &sp : trace.spans) {
+    const std::string n = rec.labelName(sp.label);
+    if (n == "Storage.readSync" || n == "Crypto.hash") ++names;
+    if (n == "Codec.decode" && (sp.flags & flags::Incomplete) && sp.endNs <= inc.captureEndNs) ++incomplete;
+    if (n == "Storage.writeSync" && (sp.flags & flags::Error)) ++errors;
+    if (n == "Net.fetch" || n == "Keyboard.(async method)") ++fetch;
+    if (n.rfind("ThreadInspector.", 0) == 0) own += n == "ThreadInspector.simulateNativeBlock" ? 1 : 100;
+  }
+  CHECK(names == 2);
+  CHECK(incomplete == 1);
+  CHECK(errors == 1);
+  CHECK(fetch == 3);
+  CHECK(own == 1);
+  CHECK(trace.spans.size() == 8);
+
+  tm.setEnabled(false);
+  tm.syncStart("Storage", "readSync");
+  tm.syncEnd("Storage", "readSync", false);
+  CHECK(tm.unmatchedEnds() == 1);
+}
+
+static void testJsonRejectsInvalidUtf8() {
+  JsonWriter w;
+  w.beginArray().str("ok \xc3\xa9 \xe2\x82\xac").str("bad \x1c\xfds\x03\x01").str("cut \xe2\x82").endArray();
+  const std::string out = w.take();
+  CHECK(out == "[\"ok \xc3\xa9 \xe2\x82\xac\",\"bad \\u001c\\ufffds\\u0003\\u0001\",\"cut \\ufffd\\ufffd\"]");
+}
+
 static void testPrehistoryPinnedDuringFlood() {
   Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
   const uint32_t marker = rig.rec.intern("flood.marker");
@@ -498,6 +569,8 @@ int main() {
       {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
       {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},
       {"screen context in report", testScreenContextInReport},
+      {"turbomodule tracker", testTurboModuleTracker},
+      {"json rejects invalid utf-8", testJsonRejectsInvalidUtf8},
       {"prehistory pinned during flood", testPrehistoryPinnedDuringFlood},
       {"unrecovered hang hits max duration", testUnrecoveredHangHitsMaxDuration},
       {"export and writer", testExportAndWriter},

@@ -6,6 +6,7 @@
 
 #include "Inspector.h"
 #include "Platform.h"
+#include "RntiPerfLogger.h"
 
 #include <mutex>
 #include <pthread.h>
@@ -162,6 +163,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   cfg.incident.longTaskThresholdNs = msField(c, @"longTaskThresholdMs", 200) * kMs;
   cfg.writer.maxIncidents = static_cast<uint32_t>(msField(c, @"maxIncidents", 20));
   cfg.recorder.eventsPerThread = static_cast<uint32_t>(msField(c, @"bufferEventsPerThread", 2048));
+  cfg.turboModules = [c[@"turboModules"] isKindOfClass:NSNumber.class] && [c[@"turboModules"] boolValue];
+  const bool wantTurboModules = cfg.turboModules;
 
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -189,6 +192,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   bool created = false;
   Inspector &ins = Inspector::install(std::move(cfg), postToJs, postToMain, onSaved, created);
   ins.markJsThread();
+  if (wantTurboModules) installTurboModulePerfLogger(ins);
   ins.start(true);
   installRunLoopObserver();
 
@@ -202,12 +206,15 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
     }
   });
 
+  NSDictionary *tmStatus = wantTurboModules
+      ? status(@"partial", @"sync calls and async execution; dispatch is not linked to execution")
+      : status(@"disabled", @"opt in with turboModules: true");
   NSDictionary *caps = @{
     @"jsWatchdog" : status(@"available"),
     @"mainThread" : status(@"available"),
     @"explicitNativeSpans" : status(@"available"),
     @"asyncNativeFlows" : status(@"partial", @"explicit flow IDs required"),
-    @"turboModuleIntervals" : status(@"disabled", @"automatic adapter not implemented"),
+    @"turboModuleIntervals" : tmStatus,
     @"reactRenderTimings" : status(@"unavailable", @"production renderer"),
     @"frameTimings" : status(@"partial", @"main run loop busy intervals only"),
     @"hermesSamples" : status(@"disabled"),

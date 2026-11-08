@@ -22,6 +22,10 @@ if (project.extensions.findByName("kotlin") == null) {
 
 apply plugin: "com.facebook.react"
 
+def reactNativeDir = new File(
+  ["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()
+).parentFile.absolutePath
+
 android {
   namespace "com.threadinspector"
 
@@ -32,7 +36,7 @@ android {
     minSdkVersion getExtOrDefault("minSdkVersion")
     externalNativeBuild {
       cmake {
-        arguments "-DANDROID_STL=c++_shared"
+        arguments "-DANDROID_STL=c++_shared", "-DREACT_NATIVE_DIR=${reactNativeDir}"
       }
     }
   }
@@ -41,6 +45,10 @@ android {
     cmake {
       path "CMakeLists.txt"
     }
+  }
+
+  buildFeatures {
+    prefab true
   }
 }
 

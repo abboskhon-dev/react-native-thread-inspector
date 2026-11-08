@@ -27,7 +27,9 @@ Inspector::Inspector(InspectorConfig config, Poster js, Poster main, IncidentWri
     : recorder_(config.recorder),
       writer_(std::make_unique<IncidentWriter>(recorder_, config.writer, config.meta, std::move(onSaved))),
       controller_(recorder_, config.incident, [this](Incident &&i) { writer_->enqueue(std::move(i)); }),
-      watchdog_(recorder_, controller_) {
+      watchdog_(recorder_, controller_),
+      turboModules_(recorder_),
+      turboModulesWanted_(config.turboModules) {
   named_[0] = std::make_shared<std::atomic<bool>>(false);
   named_[1] = std::make_shared<std::atomic<bool>>(false);
   longTaskLabel_ = recorder_.intern("js.long_task");
@@ -52,12 +54,14 @@ Inspector::Poster Inspector::namedPoster(Poster post, int index, const char *thr
 
 void Inspector::start(bool foreground) {
   recorder_.setEnabled(true);
+  turboModules_.setEnabled(turboModulesWanted_);
   watchdog_.setForeground(foreground);
   watchdog_.start();
 }
 
 void Inspector::stop() {
   watchdog_.stop();
+  turboModules_.setEnabled(false);
   controller_.disable(nowNs());
   recorder_.setEnabled(false);
 }

@@ -2,6 +2,7 @@
 
 #include "Inspector.h"
 #include "Platform.h"
+#include "RntiPerfLogger.h"
 
 #include <deque>
 #include <functional>
@@ -101,8 +102,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
 JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeStart(
     JNIEnv *env, jclass, jlongArray jconfig, jstring jdir, jstring jsession, jobjectArray metaKeys,
     jobjectArray metaValues) {
-  jlong c[11];
-  env->GetLongArrayRegion(jconfig, 0, 11, c);
+  jlong c[12];
+  env->GetLongArrayRegion(jconfig, 0, 12, c);
   InspectorConfig cfg;
   cfg.incident.prehistoryNs = c[0] * kMs;
   cfg.jsThresholdNs = c[1] * kMs;
@@ -114,6 +115,7 @@ JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeStart(
   cfg.incident.longTaskThresholdNs = c[7] * kMs;
   cfg.writer.maxIncidents = static_cast<uint32_t>(c[8]);
   cfg.recorder.eventsPerThread = static_cast<uint32_t>(c[9]);
+  cfg.turboModules = c[11] != 0;
   cfg.writer.directory = toString(env, jdir);
   cfg.meta.sessionId = toString(env, jsession);
   const jsize n = env->GetArrayLength(metaKeys);
@@ -128,6 +130,7 @@ JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeStart(
   bool created = false;
   Inspector &ins = Inspector::install(std::move(cfg), javaPoster(kJsChannel), javaPoster(kMainChannel), onSaved, created);
   ins.markJsThread();
+  if (c[11] != 0) installTurboModulePerfLogger(ins);
   ins.start(c[10] != 0);
   return created ? JNI_TRUE : JNI_FALSE;
 }

@@ -13,6 +13,8 @@ export type StartOptions = {
   maxIncidents?: number;
   bufferEventsPerThread?: number;
   longTasks?: boolean;
+  // Installs RN's global TurboModulePerfLogger; replaces one another SDK (e.g. Sentry) installed.
+  turboModules?: boolean;
 };
 
 export type CapabilityStatus = 'available' | 'partial' | 'disabled' | 'unavailable';

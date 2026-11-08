@@ -10,6 +10,7 @@ const capabilities = TI.start({
   probeIntervalMs: 50,
   tailAfterRecoveryMs: 500,
   cooldownMs: 1_500,
+  turboModules: true,
 });
 
 type Routes = { Home: undefined; Feed: undefined };

@@ -25,6 +25,7 @@ add_library(rnti_core STATIC
   core/IncidentWriter.cpp
   core/Inspector.cpp
   core/Recorder.cpp
+  core/TurboModuleTracker.cpp
   core/Watchdog.cpp
 )
 target_include_directories(rnti_core PUBLIC core)

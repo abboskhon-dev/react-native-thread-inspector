@@ -15,8 +15,13 @@ add_library(rnti SHARED
   ${CORE_DIR}/IncidentWriter.cpp
   ${CORE_DIR}/Inspector.cpp
   ${CORE_DIR}/Recorder.cpp
+  ${CORE_DIR}/TurboModuleTracker.cpp
   ${CORE_DIR}/Watchdog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/rn/RntiPerfLogger.cpp
 )
-target_include_directories(rnti PRIVATE ${CORE_DIR})
+find_package(ReactAndroid REQUIRED CONFIG)
+# Prefab omits this header-only interface that TurboModulePerfLogger.h includes.
+target_include_directories(rnti PRIVATE ${CORE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/rn
+  ${REACT_NATIVE_DIR}/ReactCommon/reactperflogger)
 target_compile_options(rnti PRIVATE -Wall -O2 -fvisibility=hidden)
-target_link_libraries(rnti log)
+target_link_libraries(rnti log ReactAndroid::reactnative)

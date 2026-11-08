@@ -38,6 +38,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       c.optLong("maxIncidents", 20),
       c.optLong("bufferEventsPerThread", 2_048),
       1L,
+      if (c.optBoolean("turboModules", false)) 1L else 0L,
     )
     val meta = linkedMapOf(
       "platform" to "android",
@@ -72,7 +73,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       put("mainThread", status("available"))
       put("explicitNativeSpans", status("available"))
       put("asyncNativeFlows", status("partial", "explicit flow IDs required"))
-      put("turboModuleIntervals", status("disabled", "automatic adapter not implemented"))
+      put(
+        "turboModuleIntervals",
+        if (c.optBoolean("turboModules", false)) status("partial", "sync calls and async execution; dispatch is not linked to execution")
+        else status("disabled", "opt in with turboModules: true"),
+      )
       put("reactRenderTimings", status("unavailable", "production renderer"))
       put("frameTimings", status("unavailable", "not implemented in this build"))
       put("hermesSamples", status("disabled"))

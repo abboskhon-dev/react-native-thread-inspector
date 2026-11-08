@@ -3,6 +3,7 @@
 #include "IncidentController.h"
 #include "IncidentWriter.h"
 #include "Recorder.h"
+#include "TurboModuleTracker.h"
 #include "Watchdog.h"
 
 #include <atomic>
@@ -19,6 +20,7 @@ struct InspectorConfig {
   uint64_t probeIntervalNs = 100 * kMs;
   uint64_t jsThresholdNs = 200 * kMs;
   uint64_t mainThresholdNs = 200 * kMs;
+  bool turboModules = false;
 };
 
 // One per process, never destroyed: app and RN threads may record at any time.
@@ -40,6 +42,7 @@ class Inspector {
   void reportLongTask(uint64_t startNs, uint64_t durNs);
 
   Recorder &recorder() noexcept { return recorder_; }
+  TurboModuleTracker &turboModules() noexcept { return turboModules_; }
   IncidentController &controller() noexcept { return controller_; }
 
  private:
@@ -52,6 +55,8 @@ class Inspector {
   std::unique_ptr<IncidentWriter> writer_;
   IncidentController controller_;
   Watchdog watchdog_;
+  TurboModuleTracker turboModules_;
+  const bool turboModulesWanted_;
   std::shared_ptr<std::atomic<bool>> named_[2];
   uint32_t longTaskLabel_ = 0;
   uint32_t foregroundLabel_ = 0;
