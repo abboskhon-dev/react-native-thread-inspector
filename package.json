@@ -4,6 +4,9 @@
   "description": "Local flight recorder for React Native responsiveness",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
+  "bin": {
+    "rnti": "./cli/rnti.mjs"
+  },
   "exports": {
     ".": {
       "react-native-thread-inspector-source": "./src/index.tsx",
@@ -17,6 +20,7 @@
     "lib",
     "android",
     "ios",
+    "cli",
     "cpp",
     "*.podspec",
     "react-native.config.js",
@@ -26,6 +30,7 @@
     "!android/gradlew",
     "!android/gradlew.bat",
     "!android/local.properties",
+    "!cli/*.test.mjs",
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
@@ -36,7 +41,8 @@
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
     "typecheck": "tsc",
-    "lint": "eslint \"**/*.{js,ts,tsx}\""
+    "lint": "eslint \"**/*.{js,ts,tsx}\"",
+    "test:cli": "node --test cli/*.test.mjs"
   },
   "keywords": [
     "react-native",
