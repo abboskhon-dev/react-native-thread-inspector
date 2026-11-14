@@ -24,9 +24,10 @@ const capabilities = TI.start({
   tailAfterRecoveryMs: 500,
   cooldownMs: 1_500,
   turboModules: true,
+  fabric: true,
 });
 
-type Routes = { Home: undefined; Feed: undefined };
+type Routes = { Home: undefined; Feed: undefined; Grid: undefined };
 const navigationRef = createNavigationContainerRef<Routes>();
 const Stack = createNativeStackNavigator<Routes>();
 
@@ -92,6 +93,13 @@ const scenarios: {
       await new Promise<void>((r) => setTimeout(() => r(), 1500));
       const res = TI.sampling.stop();
       TI.mark(`sampling.${res.status}`);
+    },
+  },
+  {
+    id: 'big-tree',
+    title: '8. Navigate to a 6000-view screen (Fabric commit)',
+    run: () => {
+      if (navigationRef.isReady()) navigationRef.navigate('Grid');
     },
   },
   {
@@ -231,6 +239,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 8,
   },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: 4, height: 4, margin: 1, backgroundColor: '#9ab' },
+  cellAlt: { backgroundColor: '#456' },
   mono: { fontFamily: 'monospace', fontSize: 11, color: '#222' },
 });
 
@@ -251,6 +262,19 @@ function FeedScreen() {
   );
 }
 
+function GridScreen() {
+  // No busy loop: the cost is React render plus a large Fabric commit and layout.
+  return (
+    <TI.ObservedCommit name="Grid">
+      <View style={styles.grid}>
+        {Array.from({ length: 6000 }, (_, i) => (
+          <View key={i} style={[styles.cell, i % 7 === 0 && styles.cellAlt]} />
+        ))}
+      </View>
+    </TI.ObservedCommit>
+  );
+}
+
 export default function App() {
   return (
     <NavigationContainer
@@ -264,6 +288,7 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen name="Feed" component={FeedScreen} />
+        <Stack.Screen name="Grid" component={GridScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

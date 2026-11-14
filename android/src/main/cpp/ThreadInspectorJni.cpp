@@ -1,8 +1,14 @@
 #include <jni.h>
 
+#include <ReactCommon/BindingsInstallerHolder.h>
+#include <fbjni/fbjni.h>
+
 #include "Inspector.h"
 #include "Platform.h"
+#include "RntiFabric.h"
 #include "RntiPerfLogger.h"
+
+#include <atomic>
 
 #include <deque>
 #include <functional>
@@ -17,6 +23,7 @@ JavaVM *gVm = nullptr;
 jclass gBridge = nullptr;
 jmethodID gPostProbe = nullptr;
 jmethodID gOnSaved = nullptr;
+std::atomic<bool> gFabricHooked{false};
 
 constexpr int kJsChannel = 0;
 constexpr int kMainChannel = 1;
@@ -87,6 +94,7 @@ std::string toString(JNIEnv *env, jstring s) {
 extern "C" {
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
+  facebook::jni::initialize(vm, [] {});
   gVm = vm;
   JNIEnv *env = nullptr;
   if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) return JNI_ERR;
@@ -102,8 +110,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
 JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeStart(
     JNIEnv *env, jclass, jlongArray jconfig, jstring jdir, jstring jsession, jobjectArray metaKeys,
     jobjectArray metaValues) {
-  jlong c[12];
-  env->GetLongArrayRegion(jconfig, 0, 12, c);
+  jlong c[13];
+  env->GetLongArrayRegion(jconfig, 0, 13, c);
   InspectorConfig cfg;
   cfg.incident.prehistoryNs = c[0] * kMs;
   cfg.jsThresholdNs = c[1] * kMs;
@@ -116,6 +124,7 @@ JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeStart(
   cfg.writer.maxIncidents = static_cast<uint32_t>(c[8]);
   cfg.recorder.eventsPerThread = static_cast<uint32_t>(c[9]);
   cfg.turboModules = c[11] != 0;
+  cfg.fabric = c[12] != 0;
   cfg.writer.directory = toString(env, jdir);
   cfg.meta.sessionId = toString(env, jsession);
   const jsize n = env->GetArrayLength(metaKeys);
@@ -208,6 +217,19 @@ JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeLongTask(JNIE
 
 JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeMarkScreen(JNIEnv *, jclass, jint label) {
   if (auto *i = Inspector::shared()) i->markScreen(static_cast<uint32_t>(label));
+}
+
+JNIEXPORT jboolean JNICALL Java_com_threadinspector_NativeBridge_nativeFabricHooked(JNIEnv *, jclass) {
+  return gFabricHooked.load() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jobject JNICALL Java_com_threadinspector_ThreadInspectorModule_getBindingsInstaller(JNIEnv *, jobject) {
+  using facebook::react::BindingsInstallerHolder;
+  auto holder = BindingsInstallerHolder::newObjectCxxArgs(
+      [](facebook::jsi::Runtime &rt, const std::shared_ptr<facebook::react::CallInvoker> &) {
+        gFabricHooked = installFabricObserver(rt);
+      });
+  return holder.release();
 }
 
 } // extern "C"

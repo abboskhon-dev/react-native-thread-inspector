@@ -36,6 +36,8 @@ internal object NativeBridge {
     savedListener?.invoke(id, path)
   }
 
+  @JvmStatic external fun nativeFabricHooked(): Boolean
+
   @JvmStatic external fun nativeStart(
     config: LongArray,
     directory: String,

@@ -11,13 +11,17 @@ import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.WritableArray
+import com.facebook.react.turbomodule.core.interfaces.BindingsInstallerHolder
+import com.facebook.react.turbomodule.core.interfaces.TurboModuleWithJSIBindings
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
 
 class ThreadInspectorModule(reactContext: ReactApplicationContext) :
-  NativeThreadInspectorSpec(reactContext), LifecycleEventListener {
+  NativeThreadInspectorSpec(reactContext), LifecycleEventListener, TurboModuleWithJSIBindings {
+
+  external override fun getBindingsInstaller(): BindingsInstallerHolder
 
   private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "rnti.demo-worker") }
 
@@ -40,6 +44,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       c.optLong("bufferEventsPerThread", 2_048),
       1L,
       if (c.optBoolean("turboModules", false)) 1L else 0L,
+      if (c.optBoolean("fabric", false)) 1L else 0L,
     )
     val meta = linkedMapOf(
       "platform" to "android",
@@ -78,6 +83,14 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         "turboModuleIntervals",
         if (c.optBoolean("turboModules", false)) status("partial", "sync calls and async execution; dispatch is not linked to execution")
         else status("disabled", "opt in with turboModules: true"),
+      )
+      put(
+        "fabricCommits",
+        when {
+          !c.optBoolean("fabric", false) -> status("disabled", "opt in with fabric: true")
+          NativeBridge.nativeFabricHooked() -> status("partial", "commit hook to didCommit (includes layout) and mount reports")
+          else -> status("unavailable", "no Fabric UIManager on this runtime")
+        },
       )
       put("reactRenderTimings", status("unavailable", "production renderer"))
       put("frameTimings", status("unavailable", "not implemented in this build"))
@@ -233,5 +246,9 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
+
+    init {
+      System.loadLibrary("rnti")
+    }
   }
 }

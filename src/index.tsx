@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react';
 import Native, { type IncidentSavedEvent } from './NativeThreadInspector';
 
 export type { IncidentSavedEvent };
@@ -15,6 +16,8 @@ export type StartOptions = {
   longTasks?: boolean;
   // Installs RN's global TurboModulePerfLogger; replaces one another SDK (e.g. Sentry) installed.
   turboModules?: boolean;
+  // Read-only Fabric commit/mount hooks; commit spans include Yoga layout.
+  fabric?: boolean;
 };
 
 export type CapabilityStatus =
@@ -150,6 +153,24 @@ export function mark(label: string, arg = 0): void {
 let currentScreen: string | undefined;
 
 // Route names only; params can hold user data and are never recorded.
+// Marks commits of the calling component only: not all React commits, render time, or display time.
+export function useObservedCommit(name: string): void {
+  useLayoutEffect(() => {
+    Native.instant(labelId(`react.observed_subtree_commit:${name}`), 0);
+  });
+}
+
+export function ObservedCommit({
+  name,
+  children,
+}: {
+  name: string;
+  children?: React.ReactNode;
+}) {
+  useObservedCommit(name);
+  return children ?? null;
+}
+
 export function screenChanged(routeName: string): void {
   if (!routeName || routeName === currentScreen) return;
   currentScreen = routeName;

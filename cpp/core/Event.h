@@ -27,6 +27,7 @@ enum class Category : uint8_t {
   TurboModule,
   Inspector,
   User,
+  Fabric,
 };
 
 namespace flags {

@@ -18,6 +18,7 @@ const char *categoryName(Category c) noexcept {
     case Category::TurboModule: return "turbomodule";
     case Category::Inspector: return "inspector";
     case Category::User: return "user";
+    case Category::Fabric: return "fabric";
   }
   return "unknown";
 }

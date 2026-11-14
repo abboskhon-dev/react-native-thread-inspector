@@ -21,6 +21,7 @@ struct InspectorConfig {
   uint64_t jsThresholdNs = 200 * kMs;
   uint64_t mainThresholdNs = 200 * kMs;
   bool turboModules = false;
+  bool fabric = false;
 };
 
 // One per process, never destroyed: app and RN threads may record at any time.
@@ -44,6 +45,7 @@ class Inspector {
   Recorder &recorder() noexcept { return recorder_; }
   TurboModuleTracker &turboModules() noexcept { return turboModules_; }
   IncidentController &controller() noexcept { return controller_; }
+  bool fabricActive() const noexcept { return fabricActive_.load(std::memory_order_relaxed); }
 
  private:
   Inspector(InspectorConfig config, Poster js, Poster main, IncidentWriter::SavedCallback onSaved);
@@ -57,6 +59,8 @@ class Inspector {
   Watchdog watchdog_;
   TurboModuleTracker turboModules_;
   const bool turboModulesWanted_;
+  const bool fabricWanted_;
+  std::atomic<bool> fabricActive_{false};
   std::shared_ptr<std::atomic<bool>> named_[2];
   uint32_t longTaskLabel_ = 0;
   uint32_t foregroundLabel_ = 0;

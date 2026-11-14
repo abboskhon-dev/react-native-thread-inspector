@@ -2,10 +2,12 @@
 
 #import <UIKit/UIKit.h>
 #import <ReactCommon/CallInvoker.h>
+#import <ReactCommon/RCTTurboModuleWithJSIBindings.h>
 #import <jsi/jsi.h>
 
 #include "Inspector.h"
 #include "Platform.h"
+#include "RntiFabric.h"
 #include "RntiPerfLogger.h"
 
 #if __has_include(<hermes/hermes.h>)
@@ -13,6 +15,7 @@
 #define RNTI_HAS_HERMES 1
 #endif
 
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <pthread.h>
@@ -25,6 +28,7 @@ namespace {
 std::mutex gInvokerMu;
 std::shared_ptr<facebook::react::CallInvoker> gJsInvoker;
 __weak ThreadInspector *gModule;
+std::atomic<bool> gFabricHooked{false};
 
 constexpr uint64_t kRunLoopReportNs = 32 * kMs;
 
@@ -167,6 +171,12 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   return std::make_shared<facebook::react::NativeThreadInspectorSpecJSI>(params);
 }
 
+- (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
+                          callInvoker:(const std::shared_ptr<facebook::react::CallInvoker> &)callInvoker
+{
+  gFabricHooked = installFabricObserver(runtime);
+}
+
 - (NSString *)start:(NSString *)configJson
 {
   NSDictionary *c = [NSJSONSerialization JSONObjectWithData:[configJson dataUsingEncoding:NSUTF8StringEncoding]
@@ -187,6 +197,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   cfg.recorder.eventsPerThread = static_cast<uint32_t>(msField(c, @"bufferEventsPerThread", 2048));
   cfg.turboModules = [c[@"turboModules"] isKindOfClass:NSNumber.class] && [c[@"turboModules"] boolValue];
   const bool wantTurboModules = cfg.turboModules;
+  cfg.fabric = [c[@"fabric"] isKindOfClass:NSNumber.class] && [c[@"fabric"] boolValue];
+  const bool wantFabric = cfg.fabric;
 
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -231,7 +243,11 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   NSDictionary *tmStatus = wantTurboModules
       ? status(@"partial", @"sync calls and async execution; dispatch is not linked to execution")
       : status(@"disabled", @"opt in with turboModules: true");
+  NSDictionary *fabricStatus = !wantFabric ? status(@"disabled", @"opt in with fabric: true")
+      : gFabricHooked ? status(@"partial", @"commit hook to didCommit (includes layout) and mount reports")
+                      : status(@"unavailable", @"no Fabric UIManager on this runtime");
   NSDictionary *caps = @{
+    @"fabricCommits" : fabricStatus,
     @"jsWatchdog" : status(@"available"),
     @"mainThread" : status(@"available"),
     @"explicitNativeSpans" : status(@"available"),
