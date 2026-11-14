@@ -20,5 +20,7 @@ Pod::Spec.new do |s|
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",
   }
 
+  s.resource_bundles = { "ThreadInspector_privacy" => ["ios/PrivacyInfo.xcprivacy"] }
+
   install_modules_dependencies(s)
 end

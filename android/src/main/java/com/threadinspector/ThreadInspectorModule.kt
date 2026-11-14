@@ -174,7 +174,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     val start = samplingStart ?: return JSONObject().put("status", "error").put("reason", "not sampling").toString()
     return try {
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.stop"), 0)
-      val dir = File(incidentDir().parentFile, "rnti-sessions/session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
+      val dir = File(sessionsDir(), "session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
       HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, "hermes.cpuprofile").absolutePath)
       HermesSamplingProfiler.disable()
       val session = JSONObject().apply {
@@ -184,6 +184,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         put("profile_clock", "as emitted by Hermes; map with the anchors")
       }
       File(dir, "session.json").writeText(session.toString())
+      entries(sessionsDir(), "session-").drop(MAX_SESSIONS).forEach { it.deleteRecursively() }
       samplingStart = null
       JSONObject().put("status", "available").put("path", dir.absolutePath).toString()
     } catch (e: Throwable) {
@@ -191,13 +192,28 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun sessionsDir(): File = File(incidentDir().parentFile, "rnti-sessions")
+
+  // Only finished entries carry the prefix; in-progress writes use dot-prefixed temp names.
+  private fun entries(dir: File, prefix: String): List<File> =
+    dir.listFiles { f -> f.isDirectory && f.name.startsWith(prefix) }
+      ?.sortedByDescending { it.lastModified() } ?: emptyList()
+
   override fun listIncidents(): WritableArray {
     val out = Arguments.createArray()
-    incidentDir().listFiles { f -> f.isDirectory && f.name.startsWith("incident-") }
-      ?.sortedByDescending { it.lastModified() }
-      ?.forEach { out.pushString(it.absolutePath) }
+    entries(incidentDir(), "incident-").forEach { out.pushString(it.absolutePath) }
     return out
   }
+
+  override fun deleteIncident(path: String): Boolean {
+    val target = File(path).canonicalFile
+    val inside = target.parentFile == incidentDir().canonicalFile && target.name.startsWith("incident-")
+    return inside && target.deleteRecursively()
+  }
+
+  override fun clearData(): Double =
+    (entries(incidentDir(), "incident-") + entries(sessionsDir(), "session-"))
+      .count { it.deleteRecursively() }.toDouble()
 
   override fun readIncidentFile(path: String, file: String): String {
     val root = incidentDir().canonicalFile
@@ -246,6 +262,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
+    private const val MAX_SESSIONS = 5
 
     init {
       System.loadLibrary("rnti")

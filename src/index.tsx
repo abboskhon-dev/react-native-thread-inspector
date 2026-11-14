@@ -227,6 +227,15 @@ export function listIncidents(): string[] {
   return Native.listIncidents();
 }
 
+export function deleteIncident(path: string): boolean {
+  return Native.deleteIncident(path);
+}
+
+// Removes all saved incidents and sampling sessions; returns how many were removed.
+export function clearData(): number {
+  return Native.clearData();
+}
+
 export function readIncident(path: string): { report: any; trace: string } {
   return {
     report: JSON.parse(Native.readIncidentFile(path, 'incident.json')),

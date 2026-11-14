@@ -92,6 +92,34 @@ NSString *incidentDir() {
   return [base.path stringByAppendingPathComponent:@"rnti-incidents"];
 }
 
+constexpr NSUInteger kMaxSessions = 5;
+
+NSString *sessionsDir() {
+  return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"rnti-sessions"];
+}
+
+// Only finished entries carry the prefix; in-progress writes use dot-prefixed temp names.
+NSArray<NSString *> *entries(NSString *dir, NSString *prefix) {
+  NSFileManager *fm = NSFileManager.defaultManager;
+  NSMutableArray<NSDictionary *> *found = [NSMutableArray new];
+  for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil] ?: @[]) {
+    if (![name hasPrefix:prefix]) continue;
+    NSString *p = [dir stringByAppendingPathComponent:name];
+    NSDate *mod = [fm attributesOfItemAtPath:p error:nil].fileModificationDate ?: NSDate.distantPast;
+    [found addObject:@{@"p" : p, @"m" : mod}];
+  }
+  [found sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+    return [b[@"m"] compare:a[@"m"]];
+  }];
+  return [found valueForKey:@"p"];
+}
+
+NSUInteger removeAll(NSArray<NSString *> *paths) {
+  NSUInteger n = 0;
+  for (NSString *p in paths) n += [NSFileManager.defaultManager removeItemAtPath:p error:nil] ? 1 : 0;
+  return n;
+}
+
 NSString *deviceModel() {
   NSString *sim = NSProcessInfo.processInfo.environment[@"SIMULATOR_MODEL_IDENTIFIER"];
   if (sim) return sim;
@@ -361,8 +389,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
   if (!root) return jsonString(@{@"status" : @"unavailable"});
   if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.stop"));
-  NSString *dir = [[incidentDir() stringByDeletingLastPathComponent]
-      stringByAppendingPathComponent:[NSString stringWithFormat:@"rnti-sessions/session-%lld", (long long)(rnti::nowNs() / 1000000)]];
+  NSString *dir = [sessionsDir()
+      stringByAppendingPathComponent:[NSString stringWithFormat:@"session-%lld", (long long)(rnti::nowNs() / 1000000)]];
   [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
   NSString *profile = [dir stringByAppendingPathComponent:@"hermes.cpuprofile"];
   root->dumpSampledTraceToFile(profile.UTF8String);
@@ -370,6 +398,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : @"hermes.cpuprofile",
                             @"profile_clock" : @"as emitted by Hermes; map with the anchors"};
   [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
+  NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
+  if (sessions.count > kMaxSessions) removeAll([sessions subarrayWithRange:NSMakeRange(kMaxSessions, sessions.count - kMaxSessions)]);
   gSamplingStart = nil;
   return jsonString(@{@"status" : @"available", @"path" : dir});
 #else
@@ -379,19 +409,21 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
 
 - (NSArray<NSString *> *)listIncidents
 {
-  NSString *dir = incidentDir();
-  NSFileManager *fm = NSFileManager.defaultManager;
-  NSMutableArray<NSDictionary *> *found = [NSMutableArray new];
-  for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil] ?: @[]) {
-    if (![name hasPrefix:@"incident-"]) continue;
-    NSString *p = [dir stringByAppendingPathComponent:name];
-    NSDate *mod = [fm attributesOfItemAtPath:p error:nil].fileModificationDate ?: NSDate.distantPast;
-    [found addObject:@{@"p" : p, @"m" : mod}];
-  }
-  [found sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-    return [b[@"m"] compare:a[@"m"]];
-  }];
-  return [found valueForKey:@"p"];
+  return entries(incidentDir(), @"incident-");
+}
+
+- (NSNumber *)deleteIncident:(NSString *)path
+{
+  NSString *root = incidentDir().stringByResolvingSymlinksInPath;
+  NSString *target = path.stringByStandardizingPath.stringByResolvingSymlinksInPath;
+  BOOL inside = [target.stringByDeletingLastPathComponent isEqualToString:root] &&
+                [target.lastPathComponent hasPrefix:@"incident-"];
+  return @(inside && [NSFileManager.defaultManager removeItemAtPath:target error:nil]);
+}
+
+- (NSNumber *)clearData
+{
+  return @(removeAll(entries(incidentDir(), @"incident-")) + removeAll(entries(sessionsDir(), @"session-")));
 }
 
 - (NSString *)readIncidentFile:(NSString *)path file:(NSString *)file

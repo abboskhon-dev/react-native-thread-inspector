@@ -31,6 +31,8 @@ export interface Spec extends TurboModule {
   stopHermesSampling(): string;
   listIncidents(): string[];
   readIncidentFile(path: string, file: string): string;
+  deleteIncident(path: string): boolean;
+  clearData(): number;
   simulateNativeBlock(ms: number): number;
   simulateMainThreadBlock(ms: number): void;
   simulateAsyncNativeWork(ms: number, flowId: number): Promise<void>;

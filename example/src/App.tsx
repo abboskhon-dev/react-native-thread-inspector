@@ -17,15 +17,20 @@ import {
 } from 'react-native';
 import * as TI from 'react-native-thread-inspector';
 
-const capabilities = TI.start({
-  historyMs: 5_000,
-  incidentThresholdMs: { js: 200, main: 200 },
-  probeIntervalMs: 50,
-  tailAfterRecoveryMs: 500,
-  cooldownMs: 1_500,
-  turboModules: true,
-  fabric: true,
-});
+import { BenchScreen, parseBenchUrl, type BenchConfig } from './bench';
+
+let capabilities: TI.Capabilities = {};
+const startDemo = () => {
+  capabilities = TI.start({
+    historyMs: 5_000,
+    incidentThresholdMs: { js: 200, main: 200 },
+    probeIntervalMs: 50,
+    tailAfterRecoveryMs: 500,
+    cooldownMs: 1_500,
+    turboModules: true,
+    fabric: true,
+  });
+};
 
 type Routes = { Home: undefined; Feed: undefined; Grid: undefined };
 const navigationRef = createNavigationContainerRef<Routes>();
@@ -101,6 +106,11 @@ const scenarios: {
     run: () => {
       if (navigationRef.isReady()) navigationRef.navigate('Grid');
     },
+  },
+  {
+    id: 'clear-data',
+    title: '9. Delete all incidents and sessions',
+    run: () => TI.mark(`cleared.${TI.clearData()}`),
   },
   {
     id: 'main-block',
@@ -276,6 +286,17 @@ function GridScreen() {
 }
 
 export default function App() {
+  // Bench launches decide the recorder mode, so start waits for the launch URL.
+  const [bench, setBench] = useState<BenchConfig | null | undefined>();
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      const cfg = parseBenchUrl(url);
+      if (!cfg) startDemo();
+      setBench(cfg);
+    });
+  }, []);
+  if (bench === undefined) return null;
+  if (bench) return <BenchScreen config={bench} />;
   return (
     <NavigationContainer
       ref={navigationRef}
