@@ -59,7 +59,7 @@ class Recorder {
   void nameThread(uint32_t tid, std::string_view name);
   std::vector<std::pair<uint32_t, std::string>> threadNames() const;
 
-  uint64_t newSpanId() noexcept { return nextSpanId_.fetch_add(1, std::memory_order_relaxed); }
+  uint64_t newSpanId() noexcept;
 
   void record(Event e) noexcept;
   // Reserved ring for watchdog, incident and lifecycle events so floods cannot evict them.

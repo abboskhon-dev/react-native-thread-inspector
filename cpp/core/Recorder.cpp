@@ -129,7 +129,23 @@ void Recorder::recordControl(Event e) noexcept {
   control_.push(e);
 }
 
+uint64_t Recorder::newSpanId() noexcept {
+  // Per-thread ID blocks: a shared counter per span bounces one cache line across cores.
+  constexpr uint64_t kBlock = 4096;
+  struct Block {
+    uint64_t recorderId = 0, next = 0, end = 0;
+  };
+  thread_local Block b;
+  if (b.recorderId != id_ || b.next == b.end) {
+    b.recorderId = id_;
+    b.next = nextSpanId_.fetch_add(kBlock, std::memory_order_relaxed);
+    b.end = b.next + kBlock;
+  }
+  return b.next++;
+}
+
 uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId) noexcept {
+  if (!enabled()) return 0;
   const uint64_t id = newSpanId();
   Event e;
   e.ts = nowNs();
@@ -143,6 +159,7 @@ uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId) noe
 }
 
 void Recorder::end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags) noexcept {
+  if (!enabled()) return;
   Event e;
   e.ts = nowNs();
   e.kind = EventKind::End;
@@ -155,6 +172,7 @@ void Recorder::end(Category category, uint32_t label, uint64_t spanId, uint16_t 
 
 void Recorder::complete(Category category, uint32_t label, uint64_t startNs, uint64_t durNs, uint16_t eventFlags,
                         uint64_t flowId) noexcept {
+  if (!enabled()) return;
   Event e;
   e.ts = startNs;
   e.dur = durNs;
@@ -168,6 +186,7 @@ void Recorder::complete(Category category, uint32_t label, uint64_t startNs, uin
 }
 
 void Recorder::instant(Category category, uint32_t label, uint64_t arg0, uint16_t eventFlags) noexcept {
+  if (!enabled()) return;
   Event e;
   e.ts = nowNs();
   e.kind = EventKind::Instant;

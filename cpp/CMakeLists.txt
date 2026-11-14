@@ -31,6 +31,13 @@ add_library(rnti_core STATIC
 target_include_directories(rnti_core PUBLIC core)
 target_compile_options(rnti_core PRIVATE -Wall -Wextra -Wpedantic)
 
+add_executable(rnti_micro bench/micro.cpp)
+target_link_libraries(rnti_micro PRIVATE rnti_core)
+if(NOT ANDROID)
+  find_package(Threads REQUIRED)
+  target_link_libraries(rnti_micro PRIVATE Threads::Threads)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
   find_package(Threads REQUIRED)
