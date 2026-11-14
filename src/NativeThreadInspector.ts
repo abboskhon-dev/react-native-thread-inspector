@@ -1,4 +1,8 @@
-import { TurboModuleRegistry, type CodegenTypes, type TurboModule } from 'react-native';
+import {
+  TurboModuleRegistry,
+  type CodegenTypes,
+  type TurboModule,
+} from 'react-native';
 
 export type IncidentSavedEvent = {
   id: number;
@@ -15,7 +19,12 @@ export interface Spec extends TurboModule {
   beginSpan(labelId: number, flowId: number): number;
   endSpan(labelId: number, spanId: number): number;
   instant(labelId: number, arg: number): number;
-  completeSpan(labelId: number, startNs: number, durationNs: number, flags: number): number;
+  completeSpan(
+    labelId: number,
+    startNs: number,
+    durationNs: number,
+    flags: number
+  ): number;
   reportLongTask(startNs: number, durationNs: number): number;
   markScreen(labelId: number): number;
   startHermesSampling(hz: number): string;

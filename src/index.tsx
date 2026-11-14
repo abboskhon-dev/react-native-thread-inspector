@@ -17,8 +17,12 @@ export type StartOptions = {
   turboModules?: boolean;
 };
 
-export type CapabilityStatus = 'available' | 'partial' | 'disabled' | 'unavailable';
-export type Capabilities = Record<string, { status: CapabilityStatus; reason?: string }>;
+export type CapabilityStatus =
+  'available' | 'partial' | 'disabled' | 'unavailable';
+export type Capabilities = Record<
+  string,
+  { status: CapabilityStatus; reason?: string }
+>;
 
 export type SpanToken = { labelId: number; spanId: number };
 
@@ -55,7 +59,10 @@ export function calibrateClock(samples = 7): ClockCalibration {
       best = { width, offsetNs: n - ((j0 + j1) / 2) * 1e6 };
     }
   }
-  calibration = { offsetNs: best!.offsetNs, uncertaintyNs: (best!.width / 2) * 1e6 };
+  calibration = {
+    offsetNs: best!.offsetNs,
+    uncertaintyNs: (best!.width / 2) * 1e6,
+  };
   return calibration;
 }
 
@@ -78,7 +85,10 @@ function installLongTaskObserver(): void {
   try {
     const observer = new PO((list: any) => {
       for (const entry of list.getEntries()) {
-        Native.reportLongTask(jsTimeToNativeNs(entry.startTime), entry.duration * 1e6);
+        Native.reportLongTask(
+          jsTimeToNativeNs(entry.startTime),
+          entry.duration * 1e6
+        );
       }
     });
     observer.observe({ entryTypes: ['longtask'] });
@@ -90,12 +100,17 @@ function installLongTaskObserver(): void {
 }
 
 export function start(options: StartOptions = {}): Capabilities {
-  const capabilities: Capabilities = JSON.parse(Native.start(JSON.stringify(options)));
+  const capabilities: Capabilities = JSON.parse(
+    Native.start(JSON.stringify(options))
+  );
   calibrateClock();
   if (options.longTasks !== false) installLongTaskObserver();
   capabilities.jsLongTasks = longTaskObserver
     ? { status: 'available' }
-    : { status: options.longTasks === false ? 'disabled' : 'unavailable', reason: longTaskReason };
+    : {
+        status: options.longTasks === false ? 'disabled' : 'unavailable',
+        reason: longTaskReason,
+      };
   return capabilities;
 }
 
@@ -142,13 +157,18 @@ export function screenChanged(routeName: string): void {
 }
 
 export type NavigationContainerLike = {
-  addListener(event: 'state' | '__unsafe_action__', listener: (e: any) => void): () => void;
+  addListener(
+    event: 'state' | '__unsafe_action__',
+    listener: (e: any) => void
+  ): () => void;
   getCurrentRoute(): { name: string } | undefined;
 };
 
 // React Navigation: call from NavigationContainer `onReady` with the container ref.
 // The transition span runs from action dispatch to the committed state, so it covers the new screen's render.
-export function trackNavigation(container: NavigationContainerLike): () => void {
+export function trackNavigation(
+  container: NavigationContainerLike
+): () => void {
   let pending: SpanToken | null = null;
   const settle = () => {
     if (pending) end(pending);
@@ -164,7 +184,9 @@ export function trackNavigation(container: NavigationContainerLike): () => void 
   const offAction = container.addListener('__unsafe_action__', (e) => {
     if (e?.data?.noop) return;
     settle();
-    pending = begin(`navigation.${String(e?.data?.action?.type ?? 'action').toLowerCase()}`);
+    pending = begin(
+      `navigation.${String(e?.data?.action?.type ?? 'action').toLowerCase()}`
+    );
   });
   return () => {
     settle();
@@ -173,7 +195,9 @@ export function trackNavigation(container: NavigationContainerLike): () => void 
   };
 }
 
-export function onIncidentSaved(listener: (event: IncidentSavedEvent) => void): () => void {
+export function onIncidentSaved(
+  listener: (event: IncidentSavedEvent) => void
+): () => void {
   const sub = Native.onIncidentSaved(listener);
   return () => sub.remove();
 }
@@ -189,17 +213,23 @@ export function readIncident(path: string): { report: any; trace: string } {
   };
 }
 
-export type SamplingResult = { status: CapabilityStatus | 'error'; path?: string; reason?: string };
+export type SamplingResult = {
+  status: CapabilityStatus | 'error';
+  path?: string;
+  reason?: string;
+};
 
 // Bounded diagnostic session: start before reproducing; samples cannot be recovered for a stall that already ended.
 // Hermes keeps one global sampler, so this can stop another tool's session.
 export const sampling = {
-  start: (hz = 100): SamplingResult => JSON.parse(Native.startHermesSampling(hz)),
+  start: (hz = 100): SamplingResult =>
+    JSON.parse(Native.startHermesSampling(hz)),
   stop: (): SamplingResult => JSON.parse(Native.stopHermesSampling()),
 };
 
 export const debug = {
   simulateNativeBlock: (ms: number) => Native.simulateNativeBlock(ms),
   simulateMainThreadBlock: (ms: number) => Native.simulateMainThreadBlock(ms),
-  simulateAsyncNativeWork: (ms: number, flowId = 0) => Native.simulateAsyncNativeWork(ms, flowId),
+  simulateAsyncNativeWork: (ms: number, flowId = 0) =>
+    Native.simulateAsyncNativeWork(ms, flowId),
 };

@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
+import {
+  createNavigationContainerRef,
+  NavigationContainer,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Linking, Platform, Pressable, Settings, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Linking,
+  Platform,
+  Pressable,
+  Settings,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import * as TI from 'react-native-thread-inspector';
 
 const capabilities = TI.start({
@@ -24,7 +37,11 @@ function busyLoop(ms: number) {
   return x;
 }
 
-const scenarios: { id: string; title: string; run: () => void | Promise<void> }[] = [
+const scenarios: {
+  id: string;
+  title: string;
+  run: () => void | Promise<void>;
+}[] = [
   {
     id: 'js-busy',
     title: '1. JS computation (300 ms)',
@@ -36,7 +53,9 @@ const scenarios: { id: string; title: string; run: () => void | Promise<void> }[
     id: 'native-sync',
     title: '2. Sync native call blocks JS (300 ms)',
     run: () => {
-      TI.measureSync('demo.storageRead', () => TI.debug.simulateNativeBlock(300));
+      TI.measureSync('demo.storageRead', () =>
+        TI.debug.simulateNativeBlock(300)
+      );
     },
   },
   {
@@ -88,13 +107,20 @@ function summarize(path: string): Summary {
   try {
     const { report } = TI.readIncident(path);
     const screen = report.screen?.at_detection ?? 'no screen';
-    const lines: string[] = [`#${report.id} · ${report.window.end_reason} · ${screen}`];
+    const lines: string[] = [
+      `#${report.id} · ${report.window.end_reason} · ${screen}`,
+    ];
     report.triggers.forEach((t: any, i: number) => {
-      const dur = t.duration_ns == null ? 'unrecovered' : `${Math.round(t.duration_ns / 1e6)} ms`;
+      const dur =
+        t.duration_ns == null
+          ? 'unrecovered'
+          : `${Math.round(t.duration_ns / 1e6)} ms`;
       lines.push(`${t.source} on ${t.thread_name || `tid ${t.tid}`}: ${dur}`);
       const a = report.analysis[i];
       for (const f of a.findings.slice(0, 3)) {
-        lines.push(`  ${f.relation}: ${f.label} [${f.thread_name || f.tid}] ${Math.round(f.overlap_ns / 1e6)} ms`);
+        lines.push(
+          `  ${f.relation}: ${f.label} [${f.thread_name || f.tid}] ${Math.round(f.overlap_ns / 1e6)} ms`
+        );
       }
       lines.push(`  unattributed: ${Math.round(a.unattributed_ns / 1e6)} ms`);
     });
@@ -116,8 +142,11 @@ function HomeScreen() {
     };
     Linking.getInitialURL().then(run);
     // iOS launch argument: -rntiScenario <id>
-    const launchScenario = Platform.OS === 'ios' ? Settings.get('rntiScenario') : null;
-    const timer = launchScenario ? setTimeout(() => run(`scenario/${launchScenario}`), 1500) : undefined;
+    const launchScenario =
+      Platform.OS === 'ios' ? Settings.get('rntiScenario') : null;
+    const timer = launchScenario
+      ? setTimeout(() => run(`scenario/${launchScenario}`), 1500)
+      : undefined;
     const sub = Linking.addEventListener('url', (e) => run(e.url));
     return () => {
       sub.remove();
@@ -126,7 +155,8 @@ function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    const refresh = () => setIncidents(TI.listIncidents().slice(0, 6).map(summarize));
+    const refresh = () =>
+      setIncidents(TI.listIncidents().slice(0, 6).map(summarize));
     refresh();
     return TI.onIncidentSaved((e) => {
       setStatus(`saved incident ${e.id}`);
@@ -165,7 +195,10 @@ function HomeScreen() {
         <Text style={styles.h2}>Capabilities</Text>
         <Text style={styles.mono}>
           {Object.entries(capabilities)
-            .map(([k, v]: [string, any]) => `${k}: ${v.status ?? v}${v.reason ? ` (${v.reason})` : ''}`)
+            .map(
+              ([k, v]: [string, any]) =>
+                `${k}: ${v.status ?? v}${v.reason ? ` (${v.reason})` : ''}`
+            )
             .join('\n')}
         </Text>
       </ScrollView>
@@ -177,11 +210,27 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   content: { padding: 16, paddingTop: 48 },
   h1: { fontSize: 22, fontWeight: '700', color: '#111' },
-  h2: { fontSize: 16, fontWeight: '600', marginTop: 20, marginBottom: 8, color: '#111' },
+  h2: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 20,
+    marginBottom: 8,
+    color: '#111',
+  },
   small: { fontSize: 12, color: '#555', marginBottom: 12 },
-  button: { backgroundColor: '#1f4fd1', padding: 14, borderRadius: 8, marginBottom: 10 },
+  button: {
+    backgroundColor: '#1f4fd1',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
   buttonText: { color: '#fff', fontWeight: '600' },
-  card: { backgroundColor: '#f2f3f5', padding: 10, borderRadius: 6, marginBottom: 8 },
+  card: {
+    backgroundColor: '#f2f3f5',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
   mono: { fontFamily: 'monospace', fontSize: 11, color: '#222' },
 });
 
@@ -204,9 +253,16 @@ function FeedScreen() {
 
 export default function App() {
   return (
-    <NavigationContainer ref={navigationRef} onReady={() => TI.trackNavigation(navigationRef)}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => TI.trackNavigation(navigationRef)}
+    >
       <Stack.Navigator>
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="Feed" component={FeedScreen} />
       </Stack.Navigator>
     </NavigationContainer>
