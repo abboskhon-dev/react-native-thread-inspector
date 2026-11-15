@@ -13,7 +13,10 @@ namespace rnti {
 namespace {
 
 constexpr uint32_t kSyntheticTidBase = 0x7f000000;
-constexpr uint32_t kTriggerTid = kSyntheticTidBase + 0xffff;
+constexpr uint32_t kTriggerTidBase = kSyntheticTidBase + 0xff00;
+
+// Trigger sources can overlap in time, and Perfetto rejects partially overlapping X slices on one track.
+uint32_t triggerTid(TriggerSource s) { return kTriggerTidBase + static_cast<uint32_t>(s); }
 
 double us(uint64_t ns) { return static_cast<double>(ns) / 1000.0; }
 
@@ -64,14 +67,18 @@ std::string chromeTraceJson(const Incident &incident, const ResolvedTrace &trace
 
   for (uint32_t tid : tids) {
     std::string name;
-    if (tid >= kSyntheticTidBase && tid != kTriggerTid) name = "watchdog: " + recorder.labelName(tid - kSyntheticTidBase);
+    if (tid >= kSyntheticTidBase) name = "watchdog: " + recorder.labelName(tid - kSyntheticTidBase);
     else if (auto it = names.find(tid); it != names.end()) name = it->second;
     else name = "thread " + std::to_string(tid);
     w.beginObject().key("ph").str("M").key("pid").u64(pid).key("tid").u64(tid).key("name").str("thread_name");
     w.key("args").beginObject().key("name").str(name).endObject().endObject();
   }
-  w.beginObject().key("ph").str("M").key("pid").u64(pid).key("tid").u64(kTriggerTid).key("name").str("thread_name");
-  w.key("args").beginObject().key("name").str("incident triggers").endObject().endObject();
+  std::set<TriggerSource> sources;
+  for (const auto &t : incident.triggers) sources.insert(t.source);
+  for (TriggerSource src : sources) {
+    w.beginObject().key("ph").str("M").key("pid").u64(pid).key("tid").u64(triggerTid(src)).key("name").str("thread_name");
+    w.key("args").beginObject().key("name").str(std::string("trigger: ") + triggerSourceName(src)).endObject().endObject();
+  }
 
   for (const auto &s : trace.spans) {
     const std::string name = recorder.labelName(s.label);
@@ -131,7 +138,7 @@ std::string chromeTraceJson(const Incident &incident, const ResolvedTrace &trace
   for (const auto &t : incident.triggers) {
     const uint64_t end = t.endNs ? t.endNs : incident.captureEndNs;
     w.beginObject().key("ph").str("X").key("cat").str("rnti.incident").key("name").str(triggerSourceName(t.source));
-    w.key("pid").u64(pid).key("tid").u64(kTriggerTid).key("ts").num(us(t.onsetNs));
+    w.key("pid").u64(pid).key("tid").u64(triggerTid(t.source)).key("ts").num(us(t.onsetNs));
     w.key("dur").num(us(end > t.onsetNs ? end - t.onsetNs : 0));
     w.key("args").beginObject().key("observed_tid").u64(t.tid).key("onset_approximate").boolean(t.onsetApproximate);
     w.key("recovered").boolean(t.endNs != 0).key("measurement").str(triggerMeasurement(t.source));

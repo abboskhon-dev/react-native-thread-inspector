@@ -644,12 +644,29 @@ static void testExportAndWriter() {
   std::printf("  artifact: %s\n", path.c_str());
 }
 
+static void testOverlappingTriggersOnSeparateTracks() {
+  Recorder rec({.eventsPerThread = 64, .maxThreads = 1});
+  Incident inc;
+  inc.triggers.push_back({.source = TriggerSource::JsLongTask, .tid = 1, .onsetNs = 100 * kMs, .endNs = 322 * kMs});
+  inc.triggers.push_back({.source = TriggerSource::JsWatchdog, .tid = 1, .onsetNs = 257 * kMs, .endNs = 492 * kMs});
+  inc.captureEndNs = 600 * kMs;
+  const std::string trace = chromeTraceJson(inc, ResolvedTrace{}, rec, {.sessionId = "test"});
+  const auto tidOf = [&](const char *name) {
+    const auto at = trace.find(std::string("\"name\":\"") + name + "\",\"pid\"");
+    const auto tid = trace.find("\"tid\":", at);
+    return at == std::string::npos ? std::string() : trace.substr(tid, trace.find(',', tid) - tid);
+  };
+  CHECK(!tidOf("js_long_task").empty());
+  CHECK(tidOf("js_long_task") != tidOf("js_watchdog"));
+}
+
 int main() {
   struct Case {
     const char *name;
     void (*fn)();
   } cases[] = {
       {"ring basic", testRingBasic},
+      {"overlapping triggers on separate tracks", testOverlappingTriggersOnSeparateTracks},
       {"ring wrap", testRingWrap},
       {"ring concurrent snapshots", testRingConcurrentSnapshots},
       {"recorder thread rings reuse", testRecorderThreads},
