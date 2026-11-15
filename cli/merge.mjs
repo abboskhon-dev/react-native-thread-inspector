@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SAMPLE_TID_OFFSET = 0x7e000000;
@@ -42,7 +42,7 @@ function median(xs) {
   return s[Math.floor(s.length / 2)];
 }
 
-// Idle shows up as root-only samples; the cap only guards against sampler pauses.
+// A sample covers one sampling period; longer gaps and the time after the last sample stay empty.
 function withDurations(samples) {
   const byTid = new Map();
   for (const s of samples) {
@@ -52,10 +52,10 @@ function withDurations(samples) {
   const out = [];
   for (const list of byTid.values()) {
     const gaps = list.slice(1).map((s, i) => s.tsNs - list[i].tsNs);
-    const cap = Math.max(10 * median(gaps), 10_000_000);
+    const period = median(gaps);
     list.forEach((s, i) => {
-      const next = list[i + 1]?.tsNs ?? s.tsNs + cap;
-      out.push({ ...s, durNs: Math.min(next - s.tsNs, cap) });
+      const gap = list[i + 1] ? list[i + 1].tsNs - s.tsNs : Infinity;
+      out.push({ ...s, durNs: gap <= 3 * period ? gap : period });
     });
   }
   return out;
@@ -153,7 +153,20 @@ export function summarize(samples, startNs, endNs, tid, top = 10) {
   };
 }
 
-export function mergeIncident(incidentDir, sessionDir) {
+// Refuses profiles from another recorder session, process or clock unless explicitly allowed.
+export function checkProvenance(report, pid, session) {
+  const checks = {
+    recorder_session_id: [session?.recorder_session_id, report.session_id],
+    pid: [session?.pid, pid],
+    clock_domain: [session?.clock_domain, report.clock?.domain],
+  };
+  const problems = Object.entries(checks)
+    .filter(([, [a, b]]) => a == null || b == null || a !== b)
+    .map(([k, [a, b]]) => `${k}: session ${a ?? 'missing'} vs incident ${b ?? 'missing'}`);
+  return { verified: problems.length === 0, problems };
+}
+
+export function mergeIncident(incidentDir, sessionDir, { allowUnverified = false } = {}) {
   const trace = JSON.parse(
     readFileSync(join(incidentDir, 'trace.json'), 'utf8')
   );
@@ -163,14 +176,32 @@ export function mergeIncident(incidentDir, sessionDir) {
   const profile = JSON.parse(
     readFileSync(join(sessionDir, 'hermes.cpuprofile'), 'utf8')
   );
-  const samples = loadSamples(profile);
-
-  const winStart = report.window.start_ns;
-  const winEnd = report.window.capture_end_ns;
+  const sessionPath = join(sessionDir, 'session.json');
+  const session = existsSync(sessionPath)
+    ? JSON.parse(readFileSync(sessionPath, 'utf8'))
+    : null;
   const pid = trace.traceEvents.find((e) => e.pid != null)?.pid ?? 0;
+  const provenance = checkProvenance(report, pid, session);
+  if (!provenance.verified && !allowUnverified) {
+    throw new Error(
+      `profile does not match incident (${provenance.problems.join('; ')}); pass --allow-unverified to merge anyway`
+    );
+  }
+
+  const samples = loadSamples(profile);
+  const winStart = Math.max(report.window.start_ns, session?.start?.mono_ns ?? 0);
+  const winEnd = Math.min(
+    report.window.capture_end_ns,
+    session?.stop?.mono_ns ?? Infinity
+  );
   const tids = new Set();
-  for (const sl of sampleSlices(samples)) {
-    if (sl.endNs <= winStart || sl.startNs >= winEnd) continue;
+  for (const raw of sampleSlices(samples)) {
+    const sl = {
+      ...raw,
+      startNs: Math.max(raw.startNs, winStart),
+      endNs: Math.min(raw.endNs, winEnd),
+    };
+    if (sl.endNs <= sl.startNs) continue;
     const tid = SAMPLE_TID_OFFSET + (sl.tid % 0x1000000);
     tids.add(tid);
     trace.traceEvents.push({
@@ -200,7 +231,9 @@ export function mergeIncident(incidentDir, sessionDir) {
     incident_id: report.id,
     measurement:
       'statistical JS stack samples; slice durations are inferred from sample spacing',
+    provenance,
     coverage: {
+      clipped_to_ns: [winStart, winEnd],
       samples_in_window: sampled.length,
       first_sample_ns: samples[0]?.tsNs ?? null,
       last_sample_ns: samples.at(-1)?.tsNs ?? null,
@@ -210,7 +243,12 @@ export function mergeIncident(incidentDir, sessionDir) {
       return {
         trigger_index: i,
         tid: t.tid,
-        ...summarize(samples, t.onset_ns, end, t.tid),
+        ...summarize(
+          samples,
+          Math.max(t.onset_ns, winStart),
+          Math.min(end, winEnd),
+          t.tid
+        ),
       };
     }),
   };

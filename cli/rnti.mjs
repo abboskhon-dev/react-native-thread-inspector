@@ -1,12 +1,22 @@
 #!/usr/bin/env node
 import { mergeIncident } from './merge.mjs';
 
-const [cmd, incidentDir, sessionDir] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const allowUnverified = args.includes('--allow-unverified');
+const [cmd, incidentDir, sessionDir] = args.filter((a) => !a.startsWith('--'));
 if (cmd !== 'merge' || !incidentDir || !sessionDir) {
-  console.error('usage: rnti merge <incident-dir> <session-dir>');
+  console.error('usage: rnti merge [--allow-unverified] <incident-dir> <session-dir>');
   process.exit(2);
 }
-const result = mergeIncident(incidentDir, sessionDir);
+let result;
+try {
+  result = mergeIncident(incidentDir, sessionDir, { allowUnverified });
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
+if (!result.provenance.verified)
+  console.warn(`unverified provenance: ${result.provenance.problems.join('; ')}`);
 for (const t of result.triggers) {
   console.log(
     `trigger ${t.trigger_index}: ${t.samples} samples (${t.effective_hz} Hz)`

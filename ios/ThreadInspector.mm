@@ -28,6 +28,7 @@ namespace {
 std::mutex gInvokerMu;
 std::shared_ptr<facebook::react::CallInvoker> gJsInvoker;
 __weak ThreadInspector *gModule;
+NSString *gSessionId;
 std::atomic<bool> gFabricHooked{false};
 
 constexpr uint64_t kRunLoopReportNs = 32 * kMs;
@@ -231,7 +232,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
   cfg.writer.directory = dir.UTF8String;
-  cfg.meta.sessionId = [[NSUUID UUID].UUIDString substringToIndex:8].lowercaseString.UTF8String;
+  NSString *sessionId = [[NSUUID UUID].UUIDString substringToIndex:8].lowercaseString;
+  cfg.meta.sessionId = sessionId.UTF8String;
 
   NSProcessInfo *pi = NSProcessInfo.processInfo;
   NSOperatingSystemVersion v = pi.operatingSystemVersion;
@@ -253,6 +255,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   gModule = self;
   bool created = false;
   Inspector &ins = Inspector::install(std::move(cfg), postToJs, postToMain, onSaved, created);
+  if (created) gSessionId = sessionId;
   ins.markJsThread();
   if (wantTurboModules) installTurboModulePerfLogger(ins);
   ins.start(true);
@@ -396,7 +399,9 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   root->dumpSampledTraceToFile(profile.UTF8String);
   root->disableSamplingProfiler();
   NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : @"hermes.cpuprofile",
-                            @"profile_clock" : @"as emitted by Hermes; map with the anchors"};
+                            @"profile_clock" : @"as emitted by Hermes; map with the anchors",
+                            @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()),
+                            @"clock_domain" : @(rnti::clockDomainName())};
   [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
   NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
   if (sessions.count > kMaxSessions) removeAll([sessions subarrayWithRange:NSMakeRange(kMaxSessions, sessions.count - kMaxSessions)]);

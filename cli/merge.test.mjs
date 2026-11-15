@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  checkProvenance,
   frameName,
   hotPath,
   loadSamples,
@@ -64,10 +65,21 @@ test('hot path stops where samples diverge', () => {
   );
 });
 
-test('merge adds a sample track and per-trigger summary', () => {
+function fixture(sessionOverrides = {}) {
   const inc = mkdtempSync(join(tmpdir(), 'rnti-inc-'));
   const ses = mkdtempSync(join(tmpdir(), 'rnti-ses-'));
   writeFileSync(join(ses, 'hermes.cpuprofile'), JSON.stringify(profile()));
+  writeFileSync(
+    join(ses, 'session.json'),
+    JSON.stringify({
+      recorder_session_id: 'abc',
+      pid: 1,
+      clock_domain: 'CLOCK_MONOTONIC',
+      start: { mono_ns: 950 * MS },
+      stop: { mono_ns: 1150 * MS },
+      ...sessionOverrides,
+    })
+  );
   writeFileSync(
     join(inc, 'trace.json'),
     JSON.stringify({ traceEvents: [{ ph: 'M', pid: 1, name: 'process_name' }] })
@@ -76,11 +88,60 @@ test('merge adds a sample track and per-trigger summary', () => {
     join(inc, 'incident.json'),
     JSON.stringify({
       id: 1,
+      session_id: 'abc',
+      clock: { domain: 'CLOCK_MONOTONIC' },
       window: { start_ns: 900 * MS, capture_end_ns: 1200 * MS },
       triggers: [{ tid: 7, onset_ns: 1020 * MS, end_ns: 1080 * MS }],
     })
   );
+  return { inc, ses };
+}
+
+test('last sample covers one period, long gaps stay empty', () => {
+  const slices = sampleSlices(
+    loadSamples({
+      stackFrames: { 1: { name: 'f', category: 'JavaScript' } },
+      samples: [
+        { ts: '1000000', tid: '1', sf: 1 },
+        { ts: '1010000', tid: '1', sf: 1 },
+        { ts: '1020000', tid: '1', sf: 1 },
+        { ts: '1200000', tid: '1', sf: 1 },
+      ],
+    })
+  );
+  assert.deepEqual(
+    slices.map((s) => [s.startNs / MS, s.endNs / MS]),
+    [
+      [1000, 1030],
+      [1200, 1210],
+    ]
+  );
+});
+
+test('merge refuses a profile from another session', () => {
+  const { inc, ses } = fixture({ recorder_session_id: 'other' });
+  assert.throws(() => mergeIncident(inc, ses), /recorder_session_id/);
+  const r = mergeIncident(inc, ses, { allowUnverified: true });
+  assert.equal(r.provenance.verified, false);
+  assert.equal(checkProvenance({ session_id: 'a' }, 1, null).verified, false);
+});
+
+test('merged slices are clipped to the sampling session', () => {
+  const { inc, ses } = fixture({ stop: { mono_ns: 1050 * MS } });
+  mergeIncident(inc, ses);
+  const trace = JSON.parse(
+    readFileSync(join(inc, 'trace.sampled.json'), 'utf8')
+  );
+  const ends = trace.traceEvents
+    .filter((e) => e.cat === 'rnti.hermes_sample')
+    .map((e) => e.ts + e.dur);
+  assert.ok(ends.length && Math.max(...ends) <= 1050 * 1000);
+});
+
+test('merge adds a sample track and per-trigger summary', () => {
+  const { inc, ses } = fixture();
   const r = mergeIncident(inc, ses);
+  assert.equal(r.provenance.verified, true);
   assert.equal(r.triggers[0].samples, 60);
   assert.equal(r.triggers[0].top_inclusive[0].share, 1);
   assert.deepEqual(

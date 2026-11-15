@@ -67,10 +67,12 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       emitOnIncidentSaved(event)
     }
     val dir = incidentDir().apply { mkdirs() }
+    val sessionId = UUID.randomUUID().toString().substring(0, 8)
     val fresh = NativeBridge.nativeStart(
-      config, dir.absolutePath, UUID.randomUUID().toString().substring(0, 8),
+      config, dir.absolutePath, sessionId,
       meta.keys.toTypedArray(), meta.values.toTypedArray(),
     )
+    if (fresh) recorderSessionId = sessionId
     context.removeLifecycleEventListener(this)
     context.addLifecycleEventListener(this)
 
@@ -182,6 +184,9 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         put("stop", clockAnchor())
         put("profile", "hermes.cpuprofile")
         put("profile_clock", "as emitted by Hermes; map with the anchors")
+        put("recorder_session_id", recorderSessionId ?: JSONObject.NULL)
+        put("pid", android.os.Process.myPid())
+        put("clock_domain", "CLOCK_MONOTONIC")
       }
       File(dir, "session.json").writeText(session.toString())
       entries(sessionsDir(), "session-").drop(MAX_SESSIONS).forEach { it.deleteRecursively() }
@@ -263,6 +268,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
     private const val MAX_SESSIONS = 5
+    // Outlives module instances, like the native recorder it names.
+    @Volatile private var recorderSessionId: String? = null
 
     init {
       System.loadLibrary("rnti")

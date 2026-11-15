@@ -34,6 +34,6 @@ export default defineConfig([
     },
   },
   {
-    ignores: ['node_modules/', 'lib/', 'example/dist/'],
+    ignores: ['node_modules/', 'lib/', 'example/dist/', 'cpp/build*/', '**/build/', '**/.cxx/'],
   },
 ]);
