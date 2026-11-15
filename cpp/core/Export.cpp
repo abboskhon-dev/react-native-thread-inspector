@@ -203,7 +203,8 @@ std::string incidentReportJson(const Incident &incident, const ResolvedTrace &tr
     w.beginObject().key("trigger_index").u64(a.triggerIndex);
     w.key("interval_start_ns").u64(a.intervalStartNs).key("interval_end_ns").u64(a.intervalEndNs);
     w.key("recovered").boolean(a.recovered);
-    w.key("attributed_ns").u64(a.attributedNs).key("unattributed_ns").u64(a.unattributedNs);
+    w.key("attributed_ns").u64(a.attributedNs).key("uncertain_ns").u64(a.uncertainNs);
+    w.key("unattributed_ns").u64(a.unattributedNs);
     w.key("findings").beginArray();
     for (const auto &f : a.findings) {
       w.beginObject().key("relation").str(relationName(f.relation));
@@ -212,6 +213,7 @@ std::string incidentReportJson(const Incident &incident, const ResolvedTrace &tr
       w.key("start_ns").u64(f.span.startNs).key("end_ns").u64(f.span.endNs).key("overlap_ns").u64(f.overlapNs);
       w.key("wall_time_not_cpu").boolean(true);
       if (f.span.flowId) w.key("flow_id").u64(f.span.flowId);
+      if (f.boundsUncertain) w.key("bounds_uncertain").boolean(true);
       writeFlags(w, f.span.flags);
       w.endObject();
     }
@@ -229,6 +231,10 @@ std::string incidentReportJson(const Incident &incident, const ResolvedTrace &tr
     w.beginObject().key("ring").u64(r.ring).key("kind").str(r.ring == kControlRing ? "control" : "thread");
     w.key("owner_tid").u64(r.ownerTid).key("written").u64(r.stats.written);
     w.key("overwritten").u64(r.stats.overwritten).key("skipped").u64(r.stats.skipped);
+    if (r.stats.lostAfterPin) {
+      w.key("lost_during_incident").u64(r.stats.lostAfterPin);
+      w.key("gap_from_ns").u64(r.stats.gapFromNs).key("gap_to_ns").u64(r.stats.gapToNs);
+    }
     w.key("oldest_retained_ns").u64(r.stats.oldestNs).key("newest_retained_ns").u64(r.stats.newestNs);
     w.endObject();
   }

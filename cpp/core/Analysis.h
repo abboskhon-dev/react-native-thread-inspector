@@ -16,6 +16,7 @@ struct ResolvedSpan {
   uint64_t spanId = 0;
   uint64_t flowId = 0;
   bool async = false;
+  uint32_t ring = 0;
 };
 
 struct ResolvedTrace {
@@ -34,6 +35,7 @@ struct SpanFinding {
   Relation relation;
   ResolvedSpan span;
   uint64_t overlapNs = 0;
+  bool boundsUncertain = false;
 };
 
 struct TriggerAnalysis {
@@ -42,6 +44,8 @@ struct TriggerAnalysis {
   uint64_t intervalEndNs = 0;
   bool recovered = true;
   uint64_t attributedNs = 0;
+  // Covered only by spans whose begin or end was reconstructed across lost history.
+  uint64_t uncertainNs = 0;
   uint64_t unattributedNs = 0;
   std::vector<SpanFinding> findings;
   std::vector<std::string> unknowns;

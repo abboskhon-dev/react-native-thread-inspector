@@ -85,7 +85,13 @@ void Watchdog::service(Channel &ch, uint64_t now) {
       e.tid = ch.lastAckTid;
       e.arg0 = ch.seq;
       recorder_.recordControl(e);
-      if (ch.stalled) controller_.stallEnded(ch.config.source, ackNs, ch.lastAckTid);
+      if (ch.stalled) {
+        controller_.stallEnded(ch.config.source, ackNs, ch.lastAckTid);
+      } else if (ackNs - ch.enqueueNs >= ch.config.thresholdNs) {
+        // Watchdog woke after the ack: the stall is only seen once it is over.
+        controller_.stallBegan(ch.config.source, ch.lastAckTid, ch.enqueueNs, ch.lastAckNs, now);
+        controller_.stallEnded(ch.config.source, ackNs, ch.lastAckTid);
+      }
       ch.stalled = false;
       ch.outstanding = false;
       ch.lastAckNs = ackNs;

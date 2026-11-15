@@ -50,6 +50,11 @@ void mergeSnapshot(Snapshot &pinned, Snapshot &&tail) {
       continue;
     }
     auto &p = pinned.rings[it->second];
+    if (r.stats.overwritten > p.stats.written) {
+      p.stats.lostAfterPin += r.stats.overwritten - p.stats.written;
+      p.stats.gapFromNs = p.stats.newestNs;
+      p.stats.gapToNs = r.stats.oldestNs;
+    }
     p.stats.written = r.stats.written;
     p.stats.newestNs = std::max(p.stats.newestNs, r.stats.newestNs);
     p.stats.skipped += r.stats.skipped;

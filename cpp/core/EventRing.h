@@ -20,6 +20,10 @@ struct RingStats {
   uint64_t skipped = 0;
   uint64_t oldestNs = 0;
   uint64_t newestNs = 0;
+  // Set when merging snapshots: positions overwritten between the pin and the tail.
+  uint64_t lostAfterPin = 0;
+  uint64_t gapFromNs = 0;
+  uint64_t gapToNs = 0;
 };
 
 // Single producer, any number of concurrent readers; readers never wait for the producer.

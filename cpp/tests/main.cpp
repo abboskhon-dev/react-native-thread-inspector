@@ -355,6 +355,68 @@ static void testAsyncSpanIsNotContainment() {
   CHECK(analysis[0].unattributedNs > analysis[0].attributedNs);
 }
 
+static void testLateWatchdogStillReportsStall() {
+  Recorder rec;
+  IncidentInbox inbox;
+  IncidentController controller(rec, fastConfig(), inbox.sink());
+  Watchdog watchdog(rec, controller);
+  TaskThread js;
+  std::atomic<int> posts{0};
+  watchdog.addChannel({.name = "js",
+                       .source = TriggerSource::JsWatchdog,
+                       .post =
+                           [&](std::function<void()> ack) {
+                             // Third probe: block JS 300 ms before the ack and keep the watchdog asleep past it.
+                             const bool late = posts.fetch_add(1) == 2;
+                             if (late) js.post([] { std::this_thread::sleep_for(300ms); });
+                             const bool ok = js.post(std::move(ack));
+                             if (late) std::this_thread::sleep_for(450ms);
+                             return ok;
+                           },
+                       .intervalNs = 20 * kMs,
+                       .thresholdNs = 100 * kMs});
+  js.post([] { std::this_thread::sleep_for(1ms); });
+  watchdog.start();
+  CHECK(inbox.waitFor(1, 3s));
+  watchdog.stop();
+  if (inbox.items.empty()) return;
+  const Trigger &t = inbox.items[0].triggers[0];
+  CHECK(t.endNs != 0 && t.detectedNs > t.endNs);
+  auto analysis = analyze(inbox.items[0], resolve(inbox.items[0]));
+  bool noted = false;
+  for (const auto &u : analysis[0].unknowns) noted |= u.find("woke late") != std::string::npos;
+  CHECK(noted);
+}
+
+static void testLostEndIsUncertainNotAttributed() {
+  Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
+  const uint32_t heavy = rig.rec.intern("heavy");
+  const uint32_t noise = rig.rec.intern("noise");
+  rig.watchdog.start();
+  std::this_thread::sleep_for(60ms);
+  rig.js.post([&] {
+    const uint64_t span = rig.rec.begin(Category::Js, heavy);
+    std::this_thread::sleep_for(300ms);
+    rig.rec.end(Category::Js, heavy, span);
+    for (int i = 0; i < 500; ++i) rig.rec.instant(Category::User, noise);
+  });
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Incident &inc = rig.inbox.items[0];
+  uint64_t lost = 0;
+  for (const auto &r : inc.snapshot.rings) lost += r.stats.lostAfterPin;
+  CHECK(lost > 0);
+  auto analysis = analyze(inc, resolve(inc));
+  const auto &a = analysis[0];
+  bool uncertainFinding = false;
+  for (const auto &f : a.findings) uncertainFinding |= f.span.label == heavy && f.boundsUncertain;
+  CHECK(uncertainFinding);
+  CHECK(a.uncertainNs > 0);
+  CHECK(a.attributedNs < a.uncertainNs);
+  CHECK(a.attributedNs + a.uncertainNs + a.unattributedNs == a.intervalEndNs - a.intervalStartNs);
+}
+
 static void testBackgroundMidStallEndsLifecycle() {
   Rig rig(fastConfig());
   rig.watchdog.start();
@@ -597,6 +659,8 @@ int main() {
       {"background suppresses incidents", testBackgroundSuppressesIncidents},
       {"stall before first ack names thread", testStallBeforeFirstAck},
       {"async span is temporal, not containment", testAsyncSpanIsNotContainment},
+      {"late watchdog still reports stall", testLateWatchdogStillReportsStall},
+      {"lost end is uncertain, not attributed", testLostEndIsUncertainNotAttributed},
       {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
       {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},
       {"screen context in report", testScreenContextInReport},
