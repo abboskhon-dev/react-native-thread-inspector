@@ -27,7 +27,7 @@ export type Capabilities = Record<
   { status: CapabilityStatus; reason?: string }
 >;
 
-export type SpanToken = { labelId: number; spanId: number };
+export type SpanToken = { labelId: number; spanId: number; async: boolean };
 
 export type ClockCalibration = {
   offsetNs: number;
@@ -127,18 +127,22 @@ export function newFlow(): number {
   return Native.newFlowId();
 }
 
-// An elapsed semantic span; across `await` it does not mean continuous execution.
-export function begin(label: string, flowId = 0): SpanToken {
+function beginSpan(label: string, flowId: number, async: boolean): SpanToken {
   const id = labelId(label);
-  return { labelId: id, spanId: Native.beginSpan(id, flowId) };
+  return { labelId: id, spanId: Native.beginSpan(id, flowId, async), async };
+}
+
+// Elapsed span that may cross `await`; reported as temporal or flow evidence, never as execution.
+export function begin(label: string, flowId = 0): SpanToken {
+  return beginSpan(label, flowId, true);
 }
 
 export function end(token: SpanToken): void {
-  Native.endSpan(token.labelId, token.spanId);
+  Native.endSpan(token.labelId, token.spanId, token.async);
 }
 
 export function measureSync<T>(label: string, fn: () => T): T {
-  const token = begin(label);
+  const token = beginSpan(label, 0, false);
   try {
     return fn();
   } finally {

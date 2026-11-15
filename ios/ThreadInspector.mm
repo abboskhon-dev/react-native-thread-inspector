@@ -324,18 +324,18 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   return @(i ? static_cast<double>(i->recorder().newSpanId()) : 0);
 }
 
-- (NSNumber *)beginSpan:(double)labelId flowId:(double)flowId
+- (NSNumber *)beginSpan:(double)labelId flowId:(double)flowId async:(BOOL)async
 {
   auto *i = Inspector::shared();
   if (!i) return @0;
   return @(static_cast<double>(
-      i->recorder().begin(Category::Js, static_cast<uint32_t>(labelId), static_cast<uint64_t>(flowId))));
+      i->recorder().begin(Category::Js, static_cast<uint32_t>(labelId), static_cast<uint64_t>(flowId), async)));
 }
 
-- (NSNumber *)endSpan:(double)labelId spanId:(double)spanId
+- (NSNumber *)endSpan:(double)labelId spanId:(double)spanId async:(BOOL)async
 {
   if (auto *i = Inspector::shared())
-    i->recorder().end(Category::Js, static_cast<uint32_t>(labelId), static_cast<uint64_t>(spanId));
+    i->recorder().end(Category::Js, static_cast<uint32_t>(labelId), static_cast<uint64_t>(spanId), 0, async);
   return @0;
 }
 

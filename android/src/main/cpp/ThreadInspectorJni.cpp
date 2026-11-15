@@ -188,14 +188,14 @@ JNIEXPORT jlong JNICALL Java_com_threadinspector_NativeBridge_nativeNewFlowId(JN
 }
 
 JNIEXPORT jlong JNICALL Java_com_threadinspector_NativeBridge_nativeBegin(JNIEnv *, jclass, jint category, jint label,
-                                                                          jlong flow) {
+                                                                          jlong flow, jboolean async) {
   auto *i = Inspector::shared();
-  return i ? static_cast<jlong>(i->recorder().begin(static_cast<Category>(category), label, flow)) : 0;
+  return i ? static_cast<jlong>(i->recorder().begin(static_cast<Category>(category), label, flow, async)) : 0;
 }
 
 JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeEnd(JNIEnv *, jclass, jint category, jint label,
-                                                                       jlong span) {
-  if (auto *i = Inspector::shared()) i->recorder().end(static_cast<Category>(category), label, span);
+                                                                       jlong span, jboolean async) {
+  if (auto *i = Inspector::shared()) i->recorder().end(static_cast<Category>(category), label, span, 0, async);
 }
 
 JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeInstant(JNIEnv *, jclass, jint category,

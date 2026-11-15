@@ -53,8 +53,8 @@ internal object NativeBridge {
   @JvmStatic external fun nativeIntern(label: String): Int
   @JvmStatic external fun nativeNameThread(name: String)
   @JvmStatic external fun nativeNewFlowId(): Long
-  @JvmStatic external fun nativeBegin(category: Int, label: Int, flowId: Long): Long
-  @JvmStatic external fun nativeEnd(category: Int, label: Int, spanId: Long)
+  @JvmStatic external fun nativeBegin(category: Int, label: Int, flowId: Long, async: Boolean): Long
+  @JvmStatic external fun nativeEnd(category: Int, label: Int, spanId: Long, async: Boolean)
   @JvmStatic external fun nativeInstant(category: Int, label: Int, arg: Long)
   @JvmStatic external fun nativeComplete(category: Int, label: Int, startNs: Long, durNs: Long, flags: Int, flowId: Long)
   @JvmStatic external fun nativeLongTask(startNs: Long, durNs: Long)

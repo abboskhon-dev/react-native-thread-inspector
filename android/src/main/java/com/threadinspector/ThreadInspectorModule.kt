@@ -115,11 +115,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   override fun newFlowId(): Double = NativeBridge.nativeNewFlowId().toDouble()
 
-  override fun beginSpan(labelId: Double, flowId: Double): Double =
-    NativeBridge.nativeBegin(NativeBridge.CATEGORY_JS, labelId.toInt(), flowId.toLong()).toDouble()
+  override fun beginSpan(labelId: Double, flowId: Double, async: Boolean): Double =
+    NativeBridge.nativeBegin(NativeBridge.CATEGORY_JS, labelId.toInt(), flowId.toLong(), async).toDouble()
 
-  override fun endSpan(labelId: Double, spanId: Double): Double {
-    NativeBridge.nativeEnd(NativeBridge.CATEGORY_JS, labelId.toInt(), spanId.toLong())
+  override fun endSpan(labelId: Double, spanId: Double, async: Boolean): Double {
+    NativeBridge.nativeEnd(NativeBridge.CATEGORY_JS, labelId.toInt(), spanId.toLong(), async)
     return 0.0
   }
 

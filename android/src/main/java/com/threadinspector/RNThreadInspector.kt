@@ -16,10 +16,10 @@ object RNThreadInspector {
   @JvmStatic @JvmOverloads
   fun begin(name: String, flowId: Long = 0): Span {
     val id = label(name)
-    return Span(id, NativeBridge.nativeBegin(NativeBridge.CATEGORY_NATIVE, id, flowId))
+    return Span(id, NativeBridge.nativeBegin(NativeBridge.CATEGORY_NATIVE, id, flowId, false))
   }
 
-  @JvmStatic fun end(span: Span) = NativeBridge.nativeEnd(NativeBridge.CATEGORY_NATIVE, span.label, span.id)
+  @JvmStatic fun end(span: Span) = NativeBridge.nativeEnd(NativeBridge.CATEGORY_NATIVE, span.label, span.id, false)
 
   inline fun <T> measure(name: String, flowId: Long = 0, block: () -> T): T {
     val span = begin(name, flowId)

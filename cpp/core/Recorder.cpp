@@ -144,12 +144,12 @@ uint64_t Recorder::newSpanId() noexcept {
   return b.next++;
 }
 
-uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId) noexcept {
+uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId, bool async) noexcept {
   if (!enabled()) return 0;
   const uint64_t id = newSpanId();
   Event e;
   e.ts = nowNs();
-  e.kind = EventKind::Begin;
+  e.kind = async ? EventKind::AsyncBegin : EventKind::Begin;
   e.category = category;
   e.label = label;
   e.spanId = id;
@@ -158,11 +158,11 @@ uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId) noe
   return id;
 }
 
-void Recorder::end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags) noexcept {
+void Recorder::end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags, bool async) noexcept {
   if (!enabled()) return;
   Event e;
   e.ts = nowNs();
-  e.kind = EventKind::End;
+  e.kind = async ? EventKind::AsyncEnd : EventKind::End;
   e.category = category;
   e.label = label;
   e.spanId = spanId;

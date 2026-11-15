@@ -65,8 +65,9 @@ class Recorder {
   // Reserved ring for watchdog, incident and lifecycle events so floods cannot evict them.
   void recordControl(Event e) noexcept;
 
-  uint64_t begin(Category category, uint32_t label, uint64_t flowId = 0) noexcept;
-  void end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags = 0) noexcept;
+  // async: elapsed span (e.g. across await); never counted as execution on its thread.
+  uint64_t begin(Category category, uint32_t label, uint64_t flowId = 0, bool async = false) noexcept;
+  void end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags = 0, bool async = false) noexcept;
   void complete(Category category, uint32_t label, uint64_t startNs, uint64_t durNs, uint16_t eventFlags = 0,
                 uint64_t flowId = 0) noexcept;
   void instant(Category category, uint32_t label, uint64_t arg0 = 0, uint16_t eventFlags = 0) noexcept;

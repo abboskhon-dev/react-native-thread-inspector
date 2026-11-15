@@ -325,6 +325,36 @@ static void testStallBeforeFirstAck() {
   CHECK(contained);
 }
 
+static void testAsyncSpanIsNotContainment() {
+  Rig rig(fastConfig());
+  const uint32_t pending = rig.rec.intern("request.pending");
+  const uint32_t heavy = rig.rec.intern("unrelated.work");
+  rig.watchdog.start();
+  std::this_thread::sleep_for(60ms);
+  uint64_t async = 0;
+  rig.js.post([&] { async = rig.rec.begin(Category::Js, pending, 0, true); });
+  rig.js.post([&] { std::this_thread::sleep_for(300ms); });
+  rig.js.post([&] {
+    const uint64_t span = rig.rec.begin(Category::Js, heavy);
+    std::this_thread::sleep_for(1ms);
+    rig.rec.end(Category::Js, heavy, span);
+    rig.rec.end(Category::Js, pending, async, 0, true);
+  });
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Incident &inc = rig.inbox.items[0];
+  auto analysis = analyze(inc, resolve(inc));
+  bool found = false;
+  for (const auto &f : analysis[0].findings) {
+    if (f.span.label != pending) continue;
+    found = true;
+    CHECK(f.relation == Relation::TemporalAssociation);
+  }
+  CHECK(found);
+  CHECK(analysis[0].unattributedNs > analysis[0].attributedNs);
+}
+
 static void testBackgroundMidStallEndsLifecycle() {
   Rig rig(fastConfig());
   rig.watchdog.start();
@@ -566,6 +596,7 @@ int main() {
       {"long task merges into incident", testLongTaskMergesIntoIncident},
       {"background suppresses incidents", testBackgroundSuppressesIncidents},
       {"stall before first ack names thread", testStallBeforeFirstAck},
+      {"async span is temporal, not containment", testAsyncSpanIsNotContainment},
       {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
       {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},
       {"screen context in report", testScreenContextInReport},

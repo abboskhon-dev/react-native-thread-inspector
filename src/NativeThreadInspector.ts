@@ -16,8 +16,8 @@ export interface Spec extends TurboModule {
   nowNs(): number;
   intern(label: string): number;
   newFlowId(): number;
-  beginSpan(labelId: number, flowId: number): number;
-  endSpan(labelId: number, spanId: number): number;
+  beginSpan(labelId: number, flowId: number, async: boolean): number;
+  endSpan(labelId: number, spanId: number, async: boolean): number;
   instant(labelId: number, arg: number): number;
   completeSpan(
     labelId: number,
