@@ -1,0 +1,9 @@
+clock read:           101.2 ns
+instant:              125.2 ns
+complete:              31.4 ns
+begin+end pair:       396.0 ns
+disabled begin+end:     5.6 ns
+complete, 2 threads:   37.5 ns (worst thread)
+complete, 4 threads:   40.7 ns (worst thread)
+snapshot:            9393.3 us (10240 events, 6 rings)
+ring memory:         2048 events/thread x 64 B = 128 KiB per thread
