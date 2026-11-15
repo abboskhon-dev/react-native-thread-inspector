@@ -72,6 +72,15 @@ produced no incident. Two cases needed fixes:
 
 Lesson: a detector also needs to handle being late itself.
 
+**What the duration means.** The reported stall is the delay of one probe: from posting it to it
+running on the stalled thread. That is a lower bound, not the length of the blocking work. In the
+S21 main-thread scenario a 299.8 ms block (measured by its own span) was reported as 250.4 ms:
+the block began 0.1 ms after a probe was answered, and the next probe (50 ms interval in the
+example app) was posted 50 ms into it. The true stall lies between the reported delay and the
+time since the previous answer (here 250.4 to 300.7 ms). For the 300 ms JS loop the report said
+300.7 ms: the loop itself ran 300.1 ms (it overshoots a millisecond deadline) plus 0.6 ms of other
+JS in the same task.
+
 ## Finding 2: attribution needs relations, not overlap
 
 Every report classifies each piece of evidence as one of:
@@ -100,12 +109,30 @@ Two attribution bugs shaped this:
 | Scenario | Stall | Attributed | What the report says |
 | --- | --- | --- | --- |
 | JS busy loop | 301 ms (JS) | 300 ms | `demo.parseLargeJson`, direct containment |
-| Main-thread block | 250 ms (main) | 249.6 ms | `debug.mainThreadBlock`, direct containment |
+| Main-thread block (299.8 ms) | 250.4 ms probe delay (main) | 249.6 ms | `debug.mainThreadBlock`, direct containment; block began 50 ms before the probe |
 | Heavy screen | 235 ms (JS) | 16 ms | only `fabric.commit_and_layout`; navigation is temporal; ~220 ms unattributed |
 | Heavy screen | 701 ms (main) | 0 ms | nothing instrumented ran there; fully unattributed |
 
 The first two rows show the tool is right under known conditions. The last two matter more: on
 a realistic heavy screen it explains very little, and says that instead of guessing.
+
+### What the unattributed time was (Hermes samples)
+
+The heavy screen was rerun three times with a Hermes sampling session around it (S21, release,
+provenance verified). JS stalls were 218, 230 and 226 ms, with 15-16 ms attributed to
+`fabric.commit_and_layout` each time. Of the 65 samples (~95 Hz) outside instrumented spans:
+
+- 52% `[HostFunction] createNode`: Fabric creating shadow nodes, called from React's render phase;
+- 26% React render JS (`beginWork`, fiber creation, hooks, a few young-gen GCs);
+- 17% `[HostFunction] completeRoot`: React's commit handing the tree to Fabric;
+- the rest `appendChild` and a Hermes builtin.
+
+The order was the same in every run: render and `createNode` for the first ~170 ms, then
+`completeRoot` until the stall ended, with the Fabric span inside that commit phase. So the
+unattributed ~210 ms was React rendering 6,000 views, mostly creating their shadow nodes, not
+navigation. Limits: 22-24 samples per stall give shares to roughly ±10 points and can miss phases
+under ~20 ms; native time inside `createNode` isn't broken down; and samples cover only the JS
+thread, so the 626-666 ms main-thread stalls in these runs stay unattributed.
 
 ## Finding 3: React Native internals limit what can be seen
 
@@ -140,21 +167,23 @@ Recording itself is cheap; the always-on watchdog is what costs.
 - An early version took a span ID from one shared atomic counter per event, which sat on the
   same cache line as the "enabled" flag every event reads. With 4 threads that cost ~195 ns per
   event; per-thread ID blocks brought it to ~7.6 ns.
-- Whole app, S21, idle. All modes use the same APK. Baseline `none` makes no inspector calls (it
-  is not an SDK-free build, and its loop also skips one native call, so the workload isn't fully
-  equivalent). Inspector calls made but recorder off: +0.4 ms/s CPU [−0.4, +1.5], nothing
-  measurable. Recorder on: +20–26 ms/s, about 2–2.6% of one core, from probing two threads every
-  100 ms.
+- Whole app, S21, idle. All modes use the same APK; the baseline `none` never starts the
+  recorder (it is not an SDK-free build). Inspector calls made but recorder off: +0.4 ms/s CPU
+  [−0.4, +1.5], nothing measurable. Recorder on: +20–26 ms/s across runs, about 2–2.6% of one core.
   RSS +1.0–1.5 MB. Hermes sampling: +110 ms/s while active.
-- Whole app, busy, locked 120 Hz: the CPU difference vs `none` has a confidence interval that
-  overlaps zero (+25 ms/s, [−23, +97]), but the frame metrics do differ: JS frame rate −4.2 fps
-  [−8.2, −1.4], CPU per frame +6.2%, janky frames +0.9 points. `off` shows similar differences
-  (−2.8 fps, +4.9%), which points at the non-equivalent workload more than at recording, but the
-  data can't separate the two. Unlocked runs were bimodal across *all* modes, including no SDK,
-  because the device switched refresh rate/governor state; those runs were discarded.
+- Where the idle cost comes from: a `record` mode with the same recorder config but probes only
+  once an hour cost +0.7 ms/s [−1.4, +2.4] vs `none`; the same run's `core` (probing every 100 ms)
+  cost +26.5 ms/s [+14.9, +32.3] (4 paired reps). So the idle cost is the watchdog probing, not
+  recording. Memory (~1 MB) is the rings and is the same either way.
+- Whole app, busy (locked 120 Hz): unresolved. The baseline now does identical work (same loop,
+  same native calls per frame; checked: 1198 calls/s in every mode). But the phone switched
+  between ~1170 ms/s at 120 fps and ~1450–1620 ms/s at 97–106 fps as it warmed (31 to 34 °C),
+  in every mode including `none`. That swing is 10x any plausible SDK difference. Runs that
+  landed in the same state differed by 4–19 ms/s (≤1.3%), but four reps can't establish that.
+  Resolving it needs cool-downs, logged CPU frequency/thermal state and more reps.
 
-The "under 1% overhead" target from the original plan is not met at idle. Adaptive probing (back
-off when nothing happens) is the obvious next step.
+The "under 1% overhead" target from the original plan is not met at idle, and the cause is now
+known: probing. Adaptive probing (back off when nothing happens) is the obvious next step.
 
 ## What the tool cannot tell you
 
@@ -171,7 +200,10 @@ off when nothing happens) is the obvious next step.
   was merged with checks disabled.
 - Perfetto flagged overlapping trigger slices on one track in the S21 trace; fixed by giving each
   trigger source its own track, and the re-imported trace shows no import errors.
-- The overhead baseline is a no-call mode of the same APK, not an app without the library.
+- The overhead baseline is a no-span mode of the same APK, not an app without the library.
+- Overhead runs are small (4–8 paired reps) on one phone; the busy-app result is inconclusive
+  because of device performance-state changes.
+- Watchdog durations are probe delays (lower bounds); stall start is only bracketed.
 
 ## Open questions
 
