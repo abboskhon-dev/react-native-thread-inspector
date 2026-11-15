@@ -88,6 +88,10 @@ top frames per stall). Absolute bundle paths are stripped from frame names.
 - React `<Profiler>` timings are unavailable in standard production builds.
 - Overhead budgets are being measured; see `benchmarks/`.
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick start: `yarn && yarn test`.
+
 ## License
 
 MIT
