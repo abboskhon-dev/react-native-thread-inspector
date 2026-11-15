@@ -7202,6 +7202,8 @@ __metadata:
   peerDependencies:
     react: "*"
     react-native: "*"
+  bin:
+    rnti: ./cli/rnti.mjs
   languageName: unknown
   linkType: soft
 
