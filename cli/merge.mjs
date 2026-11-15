@@ -162,11 +162,18 @@ export function checkProvenance(report, pid, session) {
   };
   const problems = Object.entries(checks)
     .filter(([, [a, b]]) => a == null || b == null || a !== b)
-    .map(([k, [a, b]]) => `${k}: session ${a ?? 'missing'} vs incident ${b ?? 'missing'}`);
+    .map(
+      ([k, [a, b]]) =>
+        `${k}: session ${a ?? 'missing'} vs incident ${b ?? 'missing'}`
+    );
   return { verified: problems.length === 0, problems };
 }
 
-export function mergeIncident(incidentDir, sessionDir, { allowUnverified = false } = {}) {
+export function mergeIncident(
+  incidentDir,
+  sessionDir,
+  { allowUnverified = false } = {}
+) {
   const trace = JSON.parse(
     readFileSync(join(incidentDir, 'trace.json'), 'utf8')
   );
@@ -189,7 +196,10 @@ export function mergeIncident(incidentDir, sessionDir, { allowUnverified = false
   }
 
   const samples = loadSamples(profile);
-  const winStart = Math.max(report.window.start_ns, session?.start?.mono_ns ?? 0);
+  const winStart = Math.max(
+    report.window.start_ns,
+    session?.start?.mono_ns ?? 0
+  );
   const winEnd = Math.min(
     report.window.capture_end_ns,
     session?.stop?.mono_ns ?? Infinity

@@ -5,7 +5,9 @@ const args = process.argv.slice(2);
 const allowUnverified = args.includes('--allow-unverified');
 const [cmd, incidentDir, sessionDir] = args.filter((a) => !a.startsWith('--'));
 if (cmd !== 'merge' || !incidentDir || !sessionDir) {
-  console.error('usage: rnti merge [--allow-unverified] <incident-dir> <session-dir>');
+  console.error(
+    'usage: rnti merge [--allow-unverified] <incident-dir> <session-dir>'
+  );
   process.exit(2);
 }
 let result;
@@ -16,7 +18,9 @@ try {
   process.exit(1);
 }
 if (!result.provenance.verified)
-  console.warn(`unverified provenance: ${result.provenance.problems.join('; ')}`);
+  console.warn(
+    `unverified provenance: ${result.provenance.problems.join('; ')}`
+  );
 for (const t of result.triggers) {
   console.log(
     `trigger ${t.trigger_index}: ${t.samples} samples (${t.effective_hz} Hz)`
