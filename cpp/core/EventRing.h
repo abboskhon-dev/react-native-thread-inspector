@@ -46,6 +46,10 @@ class EventRing {
     std::atomic<uint64_t> words[kWords]{};
   };
 
+ public:
+  static constexpr size_t kSlotBytes = sizeof(Slot);
+
+ private:
   std::unique_ptr<Slot[]> slots_;
   uint64_t mask_ = 0;
   std::atomic<uint64_t> head_{0};

@@ -114,6 +114,7 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--modes', default=','.join(MODES))
+    ap.add_argument('--workloads', default=','.join(WORKLOADS))
     args = ap.parse_args()
     rnd = random.Random(args.seed)
     out = Path(args.out)
@@ -124,7 +125,7 @@ def main():
         order = 0
         for rep in range(args.reps):
             # Each rep runs every mode once per workload, shuffled to spread drift and heat.
-            cells = [(m, wl) for wl in WORKLOADS for m in args.modes.split(',')]
+            cells = [(m, wl) for wl in args.workloads.split(',') for m in args.modes.split(',')]
             rnd.shuffle(cells)
             for mode, workload in cells:
                 row = run_one(mode, workload, args.warmup, args.window)

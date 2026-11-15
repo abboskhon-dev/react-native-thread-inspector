@@ -62,7 +62,7 @@ int main() {
   Snapshot s = rec.snapshot(0, UINT64_MAX);
   std::printf("snapshot:            %6.1f us (%zu events, %zu rings)\n", (nowNs() - t0) / 1000.0, s.events.size(),
               s.rings.size());
-  std::printf("ring memory:         %u events/thread x 64 B = %u KiB per thread\n", rec.config().eventsPerThread,
-              rec.config().eventsPerThread * 64 / 1024);
+  std::printf("ring memory:         %u slots/thread x %zu B = %zu KiB per thread\n", rec.config().eventsPerThread,
+              EventRing::kSlotBytes, rec.config().eventsPerThread * EventRing::kSlotBytes / 1024);
   return 0;
 }
