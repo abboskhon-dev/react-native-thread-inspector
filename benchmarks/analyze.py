@@ -32,7 +32,7 @@ def main(path):
         by[(r['workload'], r['mode'])][int(r['rep'])] = r
     workloads = sorted({r['workload'] for r in rows})
     base_mode = 'none' if any(r['mode'] == 'none' for r in rows) else 'off'
-    modes = [m for m in ['off', 'core', 'full', 'sampling'] if m != base_mode and any(r['mode'] == m for r in rows)]
+    modes = [m for m in ['off', 'record', 'core', 'full', 'sampling'] if m != base_mode and any(r['mode'] == m for r in rows)]
     for wl in workloads:
         base = by[(wl, base_mode)]
         print(f'\n## {wl} vs {base_mode} (n={len(base)} reps)')

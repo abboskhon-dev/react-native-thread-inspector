@@ -2,12 +2,20 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as TI from 'react-native-thread-inspector';
 
-// none: no inspector calls at all; off: calls made but recorder never started.
-export type BenchMode = 'none' | 'off' | 'core' | 'full' | 'sampling';
+// none: no spans, same native calls; off: spans but recorder never started; record: core without probing.
+export type BenchMode =
+  'none' | 'off' | 'record' | 'core' | 'full' | 'sampling';
 export type BenchWorkload = 'idle' | 'active';
 export type BenchConfig = { mode: BenchMode; workload: BenchWorkload };
 
-const MODES: BenchMode[] = ['none', 'off', 'core', 'full', 'sampling'];
+const MODES: BenchMode[] = [
+  'none',
+  'off',
+  'record',
+  'core',
+  'full',
+  'sampling',
+];
 const WORKLOADS: BenchWorkload[] = ['idle', 'active'];
 const CELLS = 300;
 const SPANS_PER_FRAME = 10;
@@ -26,8 +34,12 @@ export function parseBenchUrl(url?: string | null): BenchConfig | null {
 
 function startMode(mode: BenchMode) {
   if (mode === 'none' || mode === 'off') return;
-  const adapters = mode !== 'core';
-  TI.start({ turboModules: adapters, fabric: adapters });
+  const adapters = mode !== 'core' && mode !== 'record';
+  TI.start({
+    turboModules: adapters,
+    fabric: adapters,
+    ...(mode === 'record' && { probeIntervalMs: 3_600_000 }),
+  });
   if (mode === 'sampling') TI.sampling.start(100);
 }
 
@@ -53,7 +65,7 @@ export function BenchScreen({ config }: { config: BenchConfig }) {
         counters.spans++;
       }
       for (let i = 0; i < NATIVE_CALLS_PER_FRAME; i++) {
-        if (!bare) TI.debug.simulateNativeBlock(0);
+        TI.debug.simulateNativeBlock(0);
         counters.nativeCalls++;
       }
       setTick((t) => t + 1);
