@@ -108,6 +108,18 @@ const scenarios: {
     },
   },
   {
+    id: 'sampled-big-tree',
+    title: '10. 6000-view screen with Hermes sampling',
+    run: async () => {
+      TI.sampling.start(1000);
+      await new Promise<void>((r) => setTimeout(() => r(), 200));
+      if (navigationRef.isReady()) navigationRef.navigate('Grid');
+      await new Promise<void>((r) => setTimeout(() => r(), 2500));
+      const res = TI.sampling.stop();
+      TI.mark(`sampling.${res.status}`);
+    },
+  },
+  {
     id: 'clear-data',
     title: '9. Delete all incidents and sessions',
     run: () => TI.mark(`cleared.${TI.clearData()}`),

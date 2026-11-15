@@ -1,0 +1,155 @@
+{
+  "schema": "rnti.samples/1",
+  "incident_id": 1,
+  "measurement": "statistical JS stack samples; slice durations are inferred from sample spacing",
+  "provenance": {
+    "verified": true,
+    "problems": []
+  },
+  "coverage": {
+    "clipped_to_ns": [
+      163001730603312,
+      163003540811061
+    ],
+    "samples_in_window": 179,
+    "first_sample_ns": 163001730954000,
+    "last_sample_ns": 163004441218000
+  },
+  "triggers": [
+    {
+      "trigger_index": 0,
+      "tid": 903,
+      "hot_path": [
+        {
+          "frame": "(anonymous)",
+          "share": 1
+        },
+        {
+          "frame": "processRootScheduleInMicrotask",
+          "share": 1
+        },
+        {
+          "frame": "flushSyncWorkAcrossRoots_impl",
+          "share": 1
+        },
+        {
+          "frame": "performWorkOnRoot",
+          "share": 1
+        },
+        {
+          "frame": "renderRootSync",
+          "share": 0.818
+        },
+        {
+          "frame": "workLoopSync",
+          "share": 0.818
+        },
+        {
+          "frame": "completeUnitOfWork",
+          "share": 0.727
+        },
+        {
+          "frame": "[HostFunction] createNode",
+          "share": 0.636
+        }
+      ],
+      "samples": 22,
+      "samples_with_js_stack": 22,
+      "effective_hz": 95.5,
+      "top_self": [
+        {
+          "frame": "[HostFunction] createNode",
+          "samples": 14,
+          "share": 0.636
+        },
+        {
+          "frame": "[HostFunction] completeRoot",
+          "samples": 4,
+          "share": 0.182
+        },
+        {
+          "frame": "createFiberFromTypeAndProps",
+          "samples": 1,
+          "share": 0.045
+        },
+        {
+          "frame": "use",
+          "samples": 1,
+          "share": 0.045
+        },
+        {
+          "frame": "completeUnitOfWork",
+          "samples": 1,
+          "share": 0.045
+        },
+        {
+          "frame": "[HostFunction] appendChild",
+          "samples": 1,
+          "share": 0.045
+        }
+      ],
+      "top_inclusive": [
+        {
+          "frame": "(anonymous)",
+          "samples": 22,
+          "share": 1
+        },
+        {
+          "frame": "processRootScheduleInMicrotask",
+          "samples": 22,
+          "share": 1
+        },
+        {
+          "frame": "flushSyncWorkAcrossRoots_impl",
+          "samples": 22,
+          "share": 1
+        },
+        {
+          "frame": "performWorkOnRoot",
+          "samples": 22,
+          "share": 1
+        },
+        {
+          "frame": "renderRootSync",
+          "samples": 18,
+          "share": 0.818
+        },
+        {
+          "frame": "workLoopSync",
+          "samples": 18,
+          "share": 0.818
+        },
+        {
+          "frame": "completeUnitOfWork",
+          "samples": 16,
+          "share": 0.727
+        },
+        {
+          "frame": "[HostFunction] createNode",
+          "samples": 14,
+          "share": 0.636
+        },
+        {
+          "frame": "completeRootWhenReady",
+          "samples": 4,
+          "share": 0.182
+        },
+        {
+          "frame": "commitRoot",
+          "samples": 4,
+          "share": 0.182
+        }
+      ]
+    },
+    {
+      "trigger_index": 1,
+      "tid": 779,
+      "hot_path": [],
+      "samples": 0,
+      "samples_with_js_stack": 0,
+      "effective_hz": 0,
+      "top_self": [],
+      "top_inclusive": []
+    }
+  ]
+}

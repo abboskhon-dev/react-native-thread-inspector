@@ -1,0 +1,39 @@
+incident-84a9f476-1: stall 217.7 ms, 22 samples inside
+  last sample before onset: 3.0 ms before; first inside +1.8; last inside 4.9 before end; next after +7.9
+  span fabric.commit_and_layout [171.9, 186.9] ms: 0 samples
+  span NativeAnimatedModule.queueAndExecuteBatc [215.7, 215.8] ms: 0 samples
+  outside spans: 22 samples
+      8  React render (JS)
+      8  [HostFunction] createNode
+      4  [HostFunction] completeRoot
+      1  [Native] hermesBuiltinCopyDataProperties
+      1  [HostFunction] appendChild
+    e.g. [Native] hermesBuiltinCopyDataProperties < useAnimatedProps < AnimatedComponent < renderWithHooks < beginWork < workLoopSync
+    e.g. [HostFunction] completeRoot < commitMutationEffectsOnFiber < flushMutationEffects < commitRoot < completeRootWhenReady < performWorkOnRoot
+incident-07f91621-1: stall 230.3 ms, 22 samples inside
+  last sample before onset: 0.6 ms before; first inside +11.2; last inside 3.7 before end; next after +13.7
+  span fabric.commit_and_layout [182.6, 198.7] ms: 1 samples
+  span NativeAnimatedModule.queueAndExecuteBatc [228.3, 228.4] ms: 0 samples
+  outside spans: 21 samples
+     14  [HostFunction] createNode
+      3  React render (JS)
+      3  [HostFunction] completeRoot
+      1  [HostFunction] appendChild
+    e.g. createFiberFromTypeAndProps < createChild < reconcileChildFibersImpl <  < beginWork < workLoopSync
+    e.g. [HostFunction] completeRoot < commitMutationEffectsOnFiber < flushMutationEffects < commitRoot < completeRootWhenReady < performWorkOnRoot
+incident-920d6749-1: stall 226.1 ms, 24 samples inside
+  last sample before onset: 0.9 ms before; first inside +12.4; last inside 5.7 before end; next after +1.6
+  span fabric.commit_and_layout [179.8, 194.9] ms: 2 samples
+  span NativeAnimatedModule.queueAndExecuteBatc [223.9, 224.1] ms: 0 samples
+  outside spans: 22 samples
+     12  [HostFunction] createNode
+      6  React render (JS)
+      4  [HostFunction] completeRoot
+    e.g. [GC Young Gen] < createFiberFromTypeAndProps < createChild < reconcileChildFibersImpl <  < beginWork
+    e.g. [HostFunction] completeRoot < commitMutationEffectsOnFiber < flushMutationEffects < commitRoot < completeRootWhenReady < performWorkOnRoot
+ALL outside-span samples 65
+   34 (52%)  [HostFunction] createNode
+   17 (26%)  React render (JS)
+   11 (17%)  [HostFunction] completeRoot
+    2 (3%)  [HostFunction] appendChild
+    1 (2%)  [Native] hermesBuiltinCopyDataProperties
