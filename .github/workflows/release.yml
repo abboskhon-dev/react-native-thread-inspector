@@ -1,0 +1,58 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Check tag and changelog
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { p = 1; next } /^## \[/ { p = 0 } p' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"
+            exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "DIST_TAG=next" >> "$GITHUB_ENV"
+            echo "PRERELEASE=--prerelease" >> "$GITHUB_ENV"
+          else
+            echo "DIST_TAG=latest" >> "$GITHUB_ENV"
+          fi
+
+      - name: Lint, typecheck and test
+        run: |
+          yarn lint
+          yarn typecheck
+          yarn test
+
+      - name: Build package
+        run: yarn prepare
+
+      - name: Publish to npm
+        run: yarn npm publish --access public --provenance --tag "$DIST_TAG"
+        env:
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md $PRERELEASE
+        env:
+          GH_TOKEN: ${{ github.token }}

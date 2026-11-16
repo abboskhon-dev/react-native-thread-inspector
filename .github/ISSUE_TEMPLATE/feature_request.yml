@@ -1,0 +1,46 @@
+name: 💡 Feature or change proposal
+description: Propose a feature, or a change to the API, CLI, file schemas or what an incident claims.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What were you trying to find out, and where did the tool stop helping? A real session beats a hypothetical one.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would add or change. Rough is fine.
+    validations:
+      required: true
+  - type: checkboxes
+    id: surface
+    attributes:
+      label: What it touches
+      options:
+        - label: Public API (`src/`)
+        - label: "`rnti` CLI"
+        - label: File schema (`incident.json`, `samples.json`, `session.json`)
+        - label: What an incident claims (detection, attribution, timings, unknowns)
+        - label: Recording overhead
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Both
+        - Android
+        - iOS
+        - CLI only
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How we would know it works
+      description: The test, device run or measurement that would show it does what it says.
+    validations:
+      required: false
