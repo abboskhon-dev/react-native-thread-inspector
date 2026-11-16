@@ -10,11 +10,46 @@ user values or route params.
 > Status: research prototype. Validated on a Galaxy S21 (Android 15) and iOS 26/27 simulators with
 > React Native 0.88 (New Architecture, Hermes). Not yet published or production-proven.
 
+## What a report looks like
+
+A real incident from a Galaxy S21 release build: navigating to a screen with 6,000 views stalled
+the JS thread for 217.7 ms. `incident.json`, trimmed:
+
+```jsonc
+{
+  "triggers": [{ "source": "js_long_task", "thread_name": "RN JS", "duration_ns": 217743653 }],
+  "analysis": [{
+    "attributed_ns": 15145962,     // 15.1 ms
+    "unattributed_ns": 202597691,  // 202.6 ms
+    "findings": [
+      { "relation": "direct_containment", "label": "fabric.commit_and_layout", "overlap_ns": 15008039 },
+      { "relation": "temporal_association", "label": "navigation.navigate", "overlap_ns": 216971500 }
+    ],
+    "unknowns": [
+      "Part of the interval has no instrumented span on the stalled thread.",
+      "No stack samples were captured; work inside spans is not attributed."
+    ]
+  }]
+}
+```
+
+The navigation span overlapped the whole stall, but it is an async span, so the report calls it a
+temporal association and leaves 202.6 ms unattributed instead of blaming navigation. Merging a
+Hermes sampling session into the same incident (`rnti merge`) shows where that time went: 22
+samples, 36% in `[HostFunction] createNode`, 18% in `[HostFunction] completeRoot`, most of the rest in
+React render.
+
+The full incident is in
+[`benchmarks/results/2026-11-15-s21-sampled-big-tree`](./benchmarks/results/2026-11-15-s21-sampled-big-tree/incident-84a9f476-1),
+and [RESEARCH.md](./RESEARCH.md) explains what the tool can and cannot prove.
+
 ## Install
 
+Not on npm yet. To try it, clone the repo and run the example app:
+
 ```sh
-npm install react-native-thread-inspector
-cd ios && pod install
+yarn
+yarn example android # or: yarn example ios
 ```
 
 Requires the New Architecture and Hermes.
