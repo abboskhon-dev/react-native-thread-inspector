@@ -20,7 +20,13 @@ export function loadSamples(profile) {
     let cur = id;
     while (cur != null && frames[String(cur)]) {
       const f = frames[String(cur)];
-      if (f.category !== 'root') out.push(frameName(f.name));
+      // Unnamed functions stay distinct by bytecode address instead of pooling into one frame.
+      if (f.category !== 'root')
+        out.push(
+          !f.name && f.funcVirtAddr
+            ? `(anonymous @${f.funcVirtAddr})`
+            : frameName(f.name)
+        );
       cur = f.parent;
     }
     out.reverse();

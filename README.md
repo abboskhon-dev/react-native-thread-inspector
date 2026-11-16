@@ -99,14 +99,25 @@ TI.onIncidentSaved(({ path }) => {
 
 `trace.json` is Chrome trace format; open it in Perfetto.
 
-## Merge Hermes samples into an incident
+## Command line
 
 ```sh
+npx rnti pull android <app-id>           # or: ios <bundle-id> (booted simulator)
+npx rnti top <session-dir>
+npx rnti diff <session-a> <session-b>
 npx rnti merge <incident-dir> <session-dir>
 ```
 
-Writes `trace.sampled.json` (adds a reconstructed JS stack track) and `samples.json` (hot path and
-top frames per stall). Absolute bundle paths are stripped from frame names.
+- `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
+  only reads from the device. Physical iOS devices are not supported yet.
+- `top` summarizes one sampling session: how often the JS thread had a stack, hot path, and top
+  frames by self time. Samples from before the session started are dropped and counted.
+- `diff` compares the self-time shares of two sessions from the same build.
+- `merge` writes `trace.sampled.json` (adds a reconstructed JS stack track) and `samples.json` (hot
+  path and top frames per stall) into the incident.
+
+`top` and `diff` take `--top <n>` and `--json`. Absolute bundle paths are stripped from frame names;
+unnamed functions appear as `(anonymous @<bytecode address>)`.
 
 ## Storage and privacy
 
