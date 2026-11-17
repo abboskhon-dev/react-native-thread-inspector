@@ -2,8 +2,9 @@
 """Paired, randomized overhead runs of the example app on one Android device.
 
 Measures from outside the app (adb), so the recorder never observes itself:
-process CPU from /proc/<pid>/stat, RSS from /proc/<pid>/status, PSS from
-dumpsys meminfo, frame stats from dumpsys gfxinfo, JS throughput from logcat.
+process and per-thread CPU from /proc/<pid>/stat and /proc/<pid>/task/*/stat,
+RSS from /proc/<pid>/status, PSS from dumpsys meminfo, frame stats from dumpsys
+gfxinfo, JS throughput from logcat. Per-thread CPU goes to <out>.threads.csv.
 """
 import argparse
 import csv
@@ -20,6 +21,7 @@ WORKLOADS = ['idle', 'active']
 FIELDS = ['rep', 'order', 'mode', 'workload', 'start_ms', 'window_s', 'cpu_ms_per_s',
           'rss_kb', 'pss_kb', 'frames', 'janky_pct', 'p90_ms', 'p99_ms', 'js_frames_per_s',
           'spans_per_s', 'native_calls_per_s', 'battery_temp_c']
+THREAD_FIELDS = ['rep', 'order', 'mode', 'workload', 'tid', 'name', 'cpu_ms_per_s']
 
 
 def adb(*args, check=True):
@@ -30,9 +32,35 @@ def sh(cmd):
     return adb('shell', cmd)
 
 
-def cpu_ticks(pid):
-    f = sh(f'cat /proc/{pid}/stat').rsplit(')', 1)[1].split()
-    return int(f[11]) + int(f[12])  # utime + stime, after the comm field
+def parse_stat(line):
+    head, rest = line.rsplit(')', 1)
+    tid, name = head.split(' (', 1)
+    f = rest.split()
+    return int(tid), name, int(f[11]) + int(f[12])  # utime + stime, after the comm field
+
+
+# One shell call, so the clock and every counter share a single adb round trip.
+def snapshot(pid, before='', after=''):
+    out = sh(f'{before}date +%s%3N; cat /proc/{pid}/stat /proc/{pid}/task/*/stat 2>/dev/null; echo ---; {after}')
+    stats, extra = out.split('---\n', 1)
+    ms, process, *threads = stats.strip().splitlines()
+    return {'ms': int(ms), 'ticks': parse_stat(process)[2], 'extra': extra,
+            'threads': {tid: (name, ticks) for tid, name, ticks in map(parse_stat, threads)}}
+
+
+def cpu_ms_per_s(ticks, dt_ms):
+    return round(ticks * 10 * 1000 / dt_ms, 2)  # CLK_TCK=100
+
+
+def thread_cpu(a, b):
+    rows = []
+    for tid, (name, ticks) in b['threads'].items():
+        d = ticks - a['threads'].get(tid, (name, 0))[1]
+        # A thread that started inside the window, or a reused tid, counts from zero.
+        d = ticks if d < 0 else d
+        if d:
+            rows.append({'tid': tid, 'name': name, 'cpu_ms_per_s': cpu_ms_per_s(d, b['ms'] - a['ms'])})
+    return sorted(rows, key=lambda r: -r['cpu_ms_per_s'])
 
 
 def status_kb(pid, key):
@@ -45,8 +73,7 @@ def pss_kb():
     return int(m.group(1)) if m else None
 
 
-def gfx():
-    out = sh(f'dumpsys gfxinfo {PKG}')
+def gfx(out):
     def num(pat):
         m = re.search(pat, out, re.M)
         return float(m.group(1)) if m else None
@@ -74,10 +101,6 @@ def battery_temp():
     return int(m.group(1)) / 10 if m else None
 
 
-def device_ms():
-    return int(sh('date +%s%3N').strip())
-
-
 def run_one(mode, workload, warmup, window):
     sh(f'am force-stop {PKG}')
     adb('logcat', '-c')
@@ -85,14 +108,14 @@ def run_one(mode, workload, warmup, window):
     m = re.search(r'TotalTime: (\d+)', started)
     time.sleep(warmup)
     pid = sh(f'pidof {PKG}').strip()
-    sh(f'dumpsys gfxinfo {PKG} reset')
-    t0, c0 = device_ms(), cpu_ticks(pid)
+    a = snapshot(pid, before=f'dumpsys gfxinfo {PKG} reset >/dev/null; ')
     time.sleep(window)
-    t1, c1 = device_ms(), cpu_ticks(pid)
+    b = snapshot(pid, after=f'dumpsys gfxinfo {PKG}')
+    t0, t1 = a['ms'], b['ms']
     row = {'mode': mode, 'workload': workload, 'start_ms': int(m.group(1)) if m else None,
            'window_s': round((t1 - t0) / 1000, 3),
-           'cpu_ms_per_s': round((c1 - c0) * 10 * 1000 / (t1 - t0), 2),  # CLK_TCK=100
-           'rss_kb': status_kb(pid, 'VmRSS'), **gfx(), 'pss_kb': pss_kb()}
+           'cpu_ms_per_s': cpu_ms_per_s(b['ticks'] - a['ticks'], t1 - t0),
+           'rss_kb': status_kb(pid, 'VmRSS'), **gfx(b['extra']), 'pss_kb': pss_kb()}
     if not row['frames']:
         row.update(janky_pct=None, p90_ms=None, p99_ms=None)
     lines = bench_lines()
@@ -102,7 +125,7 @@ def run_one(mode, workload, warmup, window):
         row[col] = round(r, 1) if r is not None else None
     row['battery_temp_c'] = battery_temp()
     sh(f'am force-stop {PKG}')
-    return row
+    return row, thread_cpu(a, b)
 
 
 def main():
@@ -119,20 +142,25 @@ def main():
     rnd = random.Random(args.seed)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open('w', newline='') as f:
+    with out.open('w', newline='') as f, out.with_suffix('.threads.csv').open('w', newline='') as tf:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         w.writeheader()
+        tw = csv.DictWriter(tf, fieldnames=THREAD_FIELDS)
+        tw.writeheader()
         order = 0
         for rep in range(args.reps):
             # Each rep runs every mode once per workload, shuffled to spread drift and heat.
             cells = [(m, wl) for wl in args.workloads.split(',') for m in args.modes.split(',')]
             rnd.shuffle(cells)
             for mode, workload in cells:
-                row = run_one(mode, workload, args.warmup, args.window)
+                row, threads = run_one(mode, workload, args.warmup, args.window)
                 row.update(rep=rep, order=order)
+                tw.writerows({**t, 'rep': rep, 'order': order, 'mode': mode, 'workload': workload}
+                             for t in threads)
                 order += 1
                 w.writerow(row)
                 f.flush()
+                tf.flush()
                 print(json.dumps(row), flush=True)
                 time.sleep(args.rest)
 
