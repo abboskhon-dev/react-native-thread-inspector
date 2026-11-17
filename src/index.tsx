@@ -1,7 +1,9 @@
 import { useLayoutEffect } from 'react';
+import type { IncidentReport } from './IncidentReport';
 import Native, { type IncidentSavedEvent } from './NativeThreadInspector';
 
 export type { IncidentSavedEvent };
+export type * from './IncidentReport';
 
 export type StartOptions = {
   historyMs?: number;
@@ -242,7 +244,10 @@ export function clearData(): number {
   return Native.clearData();
 }
 
-export function readIncident(path: string): { report: any; trace: string } {
+export function readIncident(path: string): {
+  report: IncidentReport;
+  trace: string;
+} {
   return {
     report: JSON.parse(Native.readIncidentFile(path, 'incident.json')),
     trace: Native.readIncidentFile(path, 'trace.json'),
