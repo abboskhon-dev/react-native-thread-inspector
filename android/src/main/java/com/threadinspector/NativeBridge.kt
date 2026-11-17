@@ -50,6 +50,8 @@ internal object NativeBridge {
   @JvmStatic external fun nativeSetForeground(foreground: Boolean)
   @JvmStatic external fun nativeAck(channel: Int, token: Long)
   @JvmStatic external fun nativeNowNs(): Long
+  @JvmStatic external fun nativeCpuMark()
+  @JvmStatic external fun nativeCpuSinceMark(): ByteArray
   @JvmStatic external fun nativeIntern(label: String): Int
   @JvmStatic external fun nativeNameThread(name: String)
   @JvmStatic external fun nativeNewFlowId(): Long

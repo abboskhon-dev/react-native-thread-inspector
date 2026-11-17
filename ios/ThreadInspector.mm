@@ -9,6 +9,7 @@
 #include "Platform.h"
 #include "RntiFabric.h"
 #include "RntiPerfLogger.h"
+#include "ThreadCpu.h"
 
 #if __has_include(<hermes/hermes.h>)
 #include <hermes/hermes.h>
@@ -142,6 +143,8 @@ NSDictionary *status(NSString *s, NSString *reason = nil) {
 }
 
 NSDictionary *gSamplingStart;
+// Only touched by sampling start and stop, which run on the JS thread.
+rnti::CpuSnapshot gSamplingCpu;
 
 // Pairs the monotonic recorder clock with wall time so wall-clock profiles can be mapped later.
 NSDictionary *clockAnchor() {
@@ -382,6 +385,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   if (!root) return jsonString(@{@"status" : @"unavailable", @"reason" : @"IHermesRootAPI not available"});
   root->enableSamplingProfiler(hz > 0 ? hz : 100);
   gSamplingStart = anchor;
+  gSamplingCpu = rnti::cpuSnapshot();
   if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.start"));
   return jsonString(@{@"status" : @"available", @"anchor" : anchor});
 #else
@@ -395,6 +399,9 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   if (!gSamplingStart) return jsonString(@{@"status" : @"error", @"reason" : @"not sampling"});
   auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
   if (!root) return jsonString(@{@"status" : @"unavailable"});
+  // Read before the dump, so writing the profile is not counted as the app's work.
+  const std::string cpuJson = rnti::cpuDeltaJson(gSamplingCpu, rnti::cpuSnapshot());
+  id cpu = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:cpuJson.data() length:cpuJson.size()] options:0 error:nil];
   if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.stop"));
   NSString *dir = [sessionsDir()
       stringByAppendingPathComponent:[NSString stringWithFormat:@"session-%lld", (long long)(rnti::nowNs() / 1000000)]];
@@ -405,7 +412,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : kProfileFile,
                             @"profile_clock" : @"as emitted by Hermes; map with the anchors",
                             @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()), @"js_tid" : @(rnti::currentTid()),
-                            @"clock_domain" : @(rnti::clockDomainName())};
+                            @"cpu" : cpu ?: (id)NSNull.null, @"clock_domain" : @(rnti::clockDomainName())};
   [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
   NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
   NSUInteger removed = 0;

@@ -166,6 +166,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       val anchor = clockAnchor()
       HermesSamplingProfiler.enable()
       samplingStart = anchor
+      NativeBridge.nativeCpuMark()
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.start"), 0)
       JSONObject().put("status", "available").put("anchor", anchor).put("note", "Android API has no frequency parameter").toString()
     } catch (e: Throwable) {
@@ -176,6 +177,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun stopHermesSampling(): String {
     val start = samplingStart ?: return JSONObject().put("status", "error").put("reason", "not sampling").toString()
     return try {
+      // Read before the dump, so writing the profile is not counted as the app's work.
+      val cpu = runCatching { JSONObject(String(NativeBridge.nativeCpuSinceMark(), Charsets.UTF_8)) }.getOrNull()
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.stop"), 0)
       val dir = File(sessionsDir(), "session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
       HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, PROFILE_FILE).absolutePath)
@@ -189,6 +192,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         put("pid", android.os.Process.myPid())
         // Synchronous module calls run on the JS thread.
         put("js_tid", android.os.Process.myTid())
+        put("cpu", cpu ?: JSONObject.NULL)
         put("clock_domain", "CLOCK_MONOTONIC")
       }
       File(dir, "session.json").writeText(session.toString())
