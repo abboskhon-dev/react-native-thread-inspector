@@ -138,6 +138,15 @@ jobs:
         run: |
           yarn turbo run build:android --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
+      - name: Check 16 KB page alignment
+        if: env.turbo_cache_hit != 1
+        run: |
+          unzip -q -o example/android/app/build/outputs/apk/release/app-release.apk 'lib/arm64-v8a/librnti.so' -d "$RUNNER_TEMP/apk"
+          if readelf -lW "$RUNNER_TEMP/apk/lib/arm64-v8a/librnti.so" | awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then
+            echo "::error::librnti.so is not aligned to 16 KB pages"
+            exit 1
+          fi
+
   build-ios:
     runs-on: macos-latest
 
