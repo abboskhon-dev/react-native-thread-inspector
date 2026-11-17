@@ -33,13 +33,15 @@ function session(counts, { anchors = true, stale = 0 } = {}) {
       samples.push({ ts: String(t++ * 1000), tid: '7', sf: sf[name] });
   const dir = mkdtempSync(join(tmpdir(), 'rnti-top-'));
   writeFileSync(
-    join(dir, 'hermes.cpuprofile'),
+    join(dir, anchors ? 'hermes.trace.json' : 'hermes.cpuprofile'),
     JSON.stringify({ stackFrames, samples })
   );
   if (anchors)
     writeFileSync(
       join(dir, 'session.json'),
       JSON.stringify({
+        profile: 'hermes.trace.json',
+        js_tid: 7,
         start: { mono_ns: 1000 * MS },
         stop: { mono_ns: 1100 * MS },
       })
@@ -63,6 +65,7 @@ test('summary ranks self time and reports how busy the thread was', () => {
   );
   assert.equal(t.top_inclusive[0].frame, 'run');
   assert.match(formatSummary(s), /75\.0% {2}75\.0% parse/);
+  assert.match(formatSummary(s), /tid 7 \(JS thread\)/);
   assert.ok(!toJson(s).includes('self_counts'));
 });
 
@@ -79,6 +82,13 @@ test('a profile without session.json is bounded by its samples', () => {
   );
   assert.equal(s.bounds, 'first and last sample');
   assert.equal(s.samples, 13);
+});
+
+test('a directory without a profile fails with a clear message', () => {
+  assert.throws(
+    () => summarizeSession(mkdtempSync(join(tmpdir(), 'rnti-empty-'))),
+    /no Hermes profile/
+  );
 });
 
 test('unnamed functions are kept apart by address', () => {

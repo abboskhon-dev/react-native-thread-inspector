@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const SAMPLE_TID_OFFSET = 0x7e000000;
 
@@ -159,6 +159,23 @@ export function summarize(samples, startNs, endNs, tid, top = 10) {
   };
 }
 
+// Sessions recorded before the rename hold the same Chrome trace as `hermes.cpuprofile`.
+export function readSession(sessionDir) {
+  const sessionPath = join(sessionDir, 'session.json');
+  const session = existsSync(sessionPath)
+    ? JSON.parse(readFileSync(sessionPath, 'utf8'))
+    : null;
+  const names = [
+    session?.profile && basename(String(session.profile)),
+    'hermes.trace.json',
+    'hermes.cpuprofile',
+  ];
+  const name = names.find((n) => n && existsSync(join(sessionDir, n)));
+  if (!name) throw new Error(`no Hermes profile in ${sessionDir}`);
+  const profile = JSON.parse(readFileSync(join(sessionDir, name), 'utf8'));
+  return { profile, session };
+}
+
 // Refuses profiles from another recorder session, process or clock unless explicitly allowed.
 export function checkProvenance(report, pid, session) {
   const checks = {
@@ -186,13 +203,7 @@ export function mergeIncident(
   const report = JSON.parse(
     readFileSync(join(incidentDir, 'incident.json'), 'utf8')
   );
-  const profile = JSON.parse(
-    readFileSync(join(sessionDir, 'hermes.cpuprofile'), 'utf8')
-  );
-  const sessionPath = join(sessionDir, 'session.json');
-  const session = existsSync(sessionPath)
-    ? JSON.parse(readFileSync(sessionPath, 'utf8'))
-    : null;
+  const { profile, session } = readSession(sessionDir);
   const pid = trace.traceEvents.find((e) => e.pid != null)?.pid ?? 0;
   const provenance = checkProvenance(report, pid, session);
   if (!provenance.verified && !allowUnverified) {

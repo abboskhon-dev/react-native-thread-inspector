@@ -1,17 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { hotPath, loadSamples } from './merge.mjs';
-
-function readSession(sessionDir) {
-  const profile = JSON.parse(
-    readFileSync(join(sessionDir, 'hermes.cpuprofile'), 'utf8')
-  );
-  const sessionPath = join(sessionDir, 'session.json');
-  const session = existsSync(sessionPath)
-    ? JSON.parse(readFileSync(sessionPath, 'utf8'))
-    : null;
-  return { profile, session };
-}
+import { hotPath, loadSamples, readSession } from './merge.mjs';
 
 function rank(counts, busy, top) {
   return [...counts.entries()]
@@ -79,6 +66,7 @@ export function summarizeSession(sessionDir, { top = 15 } = {}) {
     duration_ms: +((toNs - fromNs) / 1e6).toFixed(1),
     samples: samples.length,
     samples_outside_session: all.length - samples.length,
+    js_tid: session?.js_tid ?? null,
     threads: [...byTid.entries()]
       .map(([tid, list]) => summarizeThread(tid, list, toNs - fromNs, top))
       .sort((a, b) => b.samples - a.samples),
@@ -146,7 +134,7 @@ export function formatSummary(s) {
   for (const t of s.threads) {
     lines.push(
       '',
-      `tid ${t.tid}: ${t.samples} samples, ${t.effective_hz} Hz, ${pct(t.busy_share).trim()} with a JS stack`
+      `tid ${t.tid}${t.tid === s.js_tid ? ' (JS thread)' : ''}: ${t.samples} samples, ${t.effective_hz} Hz, ${pct(t.busy_share).trim()} with a JS stack`
     );
     const hot = t.hot_path.map((f) => f.frame).join(' > ');
     if (hot) lines.push(`  hot path: ${hot}`);

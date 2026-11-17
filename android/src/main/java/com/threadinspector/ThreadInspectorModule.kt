@@ -178,15 +178,17 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     return try {
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.stop"), 0)
       val dir = File(sessionsDir(), "session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
-      HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, "hermes.cpuprofile").absolutePath)
+      HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, PROFILE_FILE).absolutePath)
       HermesSamplingProfiler.disable()
       val session = JSONObject().apply {
         put("start", start)
         put("stop", clockAnchor())
-        put("profile", "hermes.cpuprofile")
+        put("profile", PROFILE_FILE)
         put("profile_clock", "as emitted by Hermes; map with the anchors")
         put("recorder_session_id", recorderSessionId ?: JSONObject.NULL)
         put("pid", android.os.Process.myPid())
+        // Synchronous module calls run on the JS thread.
+        put("js_tid", android.os.Process.myTid())
         put("clock_domain", "CLOCK_MONOTONIC")
       }
       File(dir, "session.json").writeText(session.toString())
@@ -269,6 +271,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
     private const val DEFAULT_MAX_SESSIONS = 5
+    // Chrome trace format, as Hermes dumps it.
+    private const val PROFILE_FILE = "hermes.trace.json"
     @Volatile private var maxSessions = DEFAULT_MAX_SESSIONS
     // Outlives module instances, like the native recorder it names.
     @Volatile private var recorderSessionId: String? = null
