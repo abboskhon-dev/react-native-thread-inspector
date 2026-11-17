@@ -214,7 +214,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
                                                     options:0
                                                       error:nil] ?: @{};
   NSDictionary *thr = [c[@"incidentThresholdMs"] isKindOfClass:NSDictionary.class] ? c[@"incidentThresholdMs"] : @{};
-  gMaxSessions = MAX((NSUInteger)1, (NSUInteger)msField(c, @"maxSessions", 5));
+  id maxSessions = c[@"maxSessions"];
+  gMaxSessions = [maxSessions isKindOfClass:NSNumber.class] ? (NSUInteger)MAX(1LL, [maxSessions longLongValue]) : 5;
 
   InspectorConfig cfg;
   cfg.incident.prehistoryNs = msField(c, @"historyMs", 5000) * kMs;
