@@ -122,7 +122,8 @@ unnamed functions appear as `(anonymous @<bytecode address>)`.
 ## Storage and privacy
 
 - Incidents: app container (`Application Support/rnti-incidents` on iOS, app external files on
-  Android), capped by `maxIncidents` (default 20). Sampling sessions keep the latest 5.
+  Android), capped by `maxIncidents` (default 20). Sampling sessions are capped by `maxSessions`
+  (default 5); `sampling.stop()` returns `removedSessions`, the number of older ones it deleted.
 - `TI.deleteIncident(path)` and `TI.clearData()` remove saved data.
 - iOS privacy manifest declares system boot time (35F9.1) and file timestamp (C617.1) API use; no
   data collection or tracking.

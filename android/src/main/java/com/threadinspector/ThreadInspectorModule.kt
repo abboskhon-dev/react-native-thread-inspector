@@ -31,6 +31,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun start(configJson: String): String {
     val c = JSONObject(configJson)
     val threshold = c.optJSONObject("incidentThresholdMs")
+    maxSessions = c.optInt("maxSessions", DEFAULT_MAX_SESSIONS).coerceAtLeast(1)
     val config = longArrayOf(
       c.optLong("historyMs", 5_000),
       threshold?.optLong("js", 200) ?: 200,
@@ -189,9 +190,9 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         put("clock_domain", "CLOCK_MONOTONIC")
       }
       File(dir, "session.json").writeText(session.toString())
-      entries(sessionsDir(), "session-").drop(MAX_SESSIONS).forEach { it.deleteRecursively() }
+      val removed = entries(sessionsDir(), "session-").drop(maxSessions).count { it.deleteRecursively() }
       samplingStart = null
-      JSONObject().put("status", "available").put("path", dir.absolutePath).toString()
+      JSONObject().put("status", "available").put("path", dir.absolutePath).put("removedSessions", removed).toString()
     } catch (e: Throwable) {
       JSONObject().put("status", "error").put("reason", e.toString()).toString()
     }
@@ -267,7 +268,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
-    private const val MAX_SESSIONS = 5
+    private const val DEFAULT_MAX_SESSIONS = 5
+    @Volatile private var maxSessions = DEFAULT_MAX_SESSIONS
     // Outlives module instances, like the native recorder it names.
     @Volatile private var recorderSessionId: String? = null
 

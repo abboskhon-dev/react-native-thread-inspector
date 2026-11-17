@@ -12,6 +12,8 @@ export type StartOptions = {
   cooldownMs?: number;
   longTaskThresholdMs?: number;
   maxIncidents?: number;
+  // Sampling sessions kept on disk; `sampling.stop()` removes the oldest beyond this.
+  maxSessions?: number;
   bufferEventsPerThread?: number;
   longTasks?: boolean;
   // Installs RN's global TurboModulePerfLogger; replaces one another SDK (e.g. Sentry) installed.
@@ -251,6 +253,8 @@ export type SamplingResult = {
   status: CapabilityStatus | 'error';
   path?: string;
   reason?: string;
+  // Older sessions deleted by this `stop()` to stay within `maxSessions`.
+  removedSessions?: number;
 };
 
 // Bounded diagnostic session: start before reproducing; samples cannot be recovered for a stall that already ended.
