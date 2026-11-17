@@ -49,13 +49,25 @@ export function shortSource(source) {
 
 const lastSegment = (name) => (name ?? '').split(/[#.]/).at(-1);
 
+const contexts = new Map();
+
+function contextFor(mapPath) {
+  if (!contexts.has(mapPath)) {
+    const { Symbolication, SourceMapConsumer } = loadMetro();
+    contexts.set(
+      mapPath,
+      Symbolication.createContext(
+        SourceMapConsumer,
+        readFileSync(mapPath, 'utf8')
+      )
+    );
+  }
+  return contexts.get(mapPath);
+}
+
 // Hermes release frames carry a bytecode address; the composed source map is keyed on it at line 1.
 export function createSymbolicator(mapPath) {
-  const { Symbolication, SourceMapConsumer } = loadMetro();
-  const context = Symbolication.createContext(
-    SourceMapConsumer,
-    readFileSync(mapPath, 'utf8')
-  );
+  const context = contextFor(mapPath);
   const stats = { js_frames: 0, mapped: 0, named: 0, names_agree: 0 };
   const cache = new Map();
   const resolve = (frame) => {
