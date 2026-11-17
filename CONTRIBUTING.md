@@ -44,6 +44,8 @@ first saves a rewrite in review.
 
 ## Pull requests
 
+- Name the branch `feat/<slug>` when it adds or changes behaviour, or `chore/<slug>` for tooling,
+  CI, docs and housekeeping. If it does both, use `feat/`.
 - Fill in the PR template: summary, evidence, merge danger.
 - Add a line to `CHANGELOG.md` under `Unreleased` for anything a user would notice.
 - Keep each PR to one change, and add a test when you fix a bug in `cpp/core` or `cli`.
