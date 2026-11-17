@@ -41,6 +41,28 @@ function summarizeThread(tid, samples, spanNs, top) {
   };
 }
 
+const ms = (ns) => +(ns / 1e6).toFixed(1);
+
+// CPU time the recorder read per thread at sampling start and stop; absent in older sessions.
+function summarizeCpu(cpu, top) {
+  if (!cpu?.wall_ns || !Array.isArray(cpu.threads)) return null;
+  const threads = cpu.threads.map((t) => ({
+    tid: t.tid,
+    name: t.name,
+    cpu_ms: ms(t.cpu_ns),
+    core_share: +(t.cpu_ns / cpu.wall_ns).toFixed(3),
+  }));
+  return {
+    measurement:
+      'CPU time per thread between sampling start and stop; a thread that exited in between is only in the process total',
+    wall_ms: ms(cpu.wall_ns),
+    process_cpu_ms: ms(cpu.process_ns),
+    process_core_share: +(cpu.process_ns / cpu.wall_ns).toFixed(3),
+    threads_with_cpu: threads.length,
+    threads: threads.slice(0, top),
+  };
+}
+
 // Samples outside the session anchors belong to an earlier session and are dropped.
 export function summarizeSession(
   sessionDir,
@@ -75,6 +97,7 @@ export function summarizeSession(
     samples: samples.length,
     samples_outside_session: all.length - samples.length,
     js_tid: session?.js_tid ?? null,
+    cpu: summarizeCpu(session?.cpu, top),
     ...(sourceMapCheck && { source_map: sourceMapCheck }),
     threads: [...byTid.entries()]
       .map(([tid, list]) => summarizeThread(tid, list, toNs - fromNs, top))
@@ -148,6 +171,17 @@ export function formatSummary(s) {
     lines.push(
       `dropped ${s.samples_outside_session} samples outside the session`
     );
+  if (s.cpu) {
+    lines.push(
+      '',
+      `CPU over ${s.cpu.wall_ms} ms: process ${s.cpu.process_cpu_ms} ms (${pct(s.cpu.process_core_share).trim()} of one core), ${s.cpu.threads_with_cpu} threads used CPU`,
+      '    cpu ms   core  thread'
+    );
+    for (const t of s.cpu.threads)
+      lines.push(
+        `  ${t.cpu_ms.toFixed(1).padStart(8)} ${pct(t.core_share)}  ${t.name || '(unnamed)'} (tid ${t.tid}${t.tid === s.js_tid ? ', JS thread' : ''})`
+      );
+  }
   for (const t of s.threads) {
     lines.push(
       '',

@@ -19,3 +19,4 @@ First release.
   source map.
 - `maxSessions` option; `sampling.stop()` returns `removedSessions`.
 - `readIncident()` returns a typed `IncidentReport`.
+- Sampling sessions record CPU time per thread, and `rnti top` lists it.

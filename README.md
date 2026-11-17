@@ -110,14 +110,32 @@ npx rnti merge <incident-dir> <session-dir>
 
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
   only reads from the device. Physical iOS devices are not supported yet.
-- `top` summarizes one sampling session: how often the JS thread had a stack, hot path, and top
-  frames by self time. Samples from before the session started are dropped and counted.
+- `top` summarizes one sampling session: CPU time per thread, how often the JS thread had a stack,
+  hot path, and top frames by self time. Samples from before the session started are dropped and
+  counted.
 - `diff` compares the self-time shares of two sessions from the same build.
 - `merge` writes `trace.sampled.json` (adds a reconstructed JS stack track) and `samples.json` (hot
   path and top frames per stall) into the incident.
 
 `top` and `diff` take `--top <n>` and `--json`. Absolute bundle paths are stripped from frame names;
 unnamed functions appear as `(anonymous @<bytecode address>)`.
+
+### CPU by thread
+
+A sampling session also records how much CPU time each thread used between `sampling.start()` and
+`stop()`, so `top` shows where the CPU went when it was not in JS:
+
+```
+CPU over 2828.8 ms: process 2305.6 ms (81.5% of one core), 19 threads used CPU
+    cpu ms   core  thread
+    1526.3  54.0%  spector.example (tid 6326)
+     340.0  12.0%  mqt_v_js (tid 6348, JS thread)
+     301.1  10.6%  RenderThread (tid 6339)
+```
+
+It says which thread was busy, not which function. Names are the ones the OS has, so the Android
+main thread shows as the end of the package name and most iOS worker threads are unnamed. A thread
+that exits before `stop()` is counted only in the process total.
 
 ### Source maps
 

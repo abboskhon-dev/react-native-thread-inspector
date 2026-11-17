@@ -14,7 +14,7 @@ import {
 const MS = 1_000_000;
 
 // counts: samples per leaf frame, in order; 'idle' is a sample with no JS stack.
-function session(counts, { anchors = true, stale = 0 } = {}) {
+function session(counts, { anchors = true, stale = 0, cpu } = {}) {
   const stackFrames = {
     1: { name: '[root]', category: 'root' },
     2: { name: 'run', category: 'JavaScript', parent: 1 },
@@ -42,6 +42,7 @@ function session(counts, { anchors = true, stale = 0 } = {}) {
       JSON.stringify({
         profile: 'hermes.trace.json',
         js_tid: 7,
+        cpu,
         start: { mono_ns: 1000 * MS },
         stop: { mono_ns: 1100 * MS },
       })
@@ -110,4 +111,30 @@ test('diff reports the change in self share between two sessions', () => {
     { frame: 'render', share_a: 0.2, share_b: 0.75, delta: 0.55 },
   ]);
   assert.match(formatDiff(d), /\+55\.0\s+render/);
+});
+
+test('per-thread CPU is listed when the session recorded it', () => {
+  const cpu = {
+    wall_ns: 2000 * MS,
+    process_ns: 1500 * MS,
+    threads: [
+      { tid: 9, name: 'RenderThread', cpu_ns: 1000 * MS },
+      { tid: 7, name: 'mqt_v_js', cpu_ns: 400 * MS },
+      { tid: 11, name: '', cpu_ns: 50 * MS },
+    ],
+  };
+  const s = summarizeSession(session({ parse: 10 }, { cpu }), { top: 2 });
+  assert.equal(s.cpu.process_core_share, 0.75);
+  assert.equal(s.cpu.threads_with_cpu, 3);
+  assert.deepEqual(
+    s.cpu.threads.map((t) => [t.name, t.cpu_ms, t.core_share]),
+    [
+      ['RenderThread', 1000, 0.5],
+      ['mqt_v_js', 400, 0.2],
+    ]
+  );
+  const text = formatSummary(s);
+  assert.match(text, /process 1500 ms \(75\.0% of one core\), 3 threads/);
+  assert.match(text, /400\.0 {2}20\.0% {2}mqt_v_js \(tid 7, JS thread\)/);
+  assert.equal(summarizeSession(session({ parse: 10 })).cpu, null);
 });
