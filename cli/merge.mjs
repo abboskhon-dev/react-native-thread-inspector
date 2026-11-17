@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { checkSourceMap, createSymbolicator } from './sourcemap.mjs';
 
 const SAMPLE_TID_OFFSET = 0x7e000000;
 
@@ -11,7 +12,7 @@ export function frameName(raw) {
     .trim();
 }
 
-export function loadSamples(profile) {
+export function loadSamples(profile, symbolicate) {
   const frames = profile.stackFrames ?? {};
   const stackCache = new Map();
   const stackOf = (id) => {
@@ -23,9 +24,10 @@ export function loadSamples(profile) {
       // Unnamed functions stay distinct by bytecode address instead of pooling into one frame.
       if (f.category !== 'root')
         out.push(
-          !f.name && f.funcVirtAddr
-            ? `(anonymous @${f.funcVirtAddr})`
-            : frameName(f.name)
+          symbolicate?.(f) ??
+            (!f.name && f.funcVirtAddr
+              ? `(anonymous @${f.funcVirtAddr})`
+              : frameName(f.name))
         );
       cur = f.parent;
     }
@@ -195,7 +197,7 @@ export function checkProvenance(report, pid, session) {
 export function mergeIncident(
   incidentDir,
   sessionDir,
-  { allowUnverified = false } = {}
+  { allowUnverified = false, sourceMap } = {}
 ) {
   const trace = JSON.parse(
     readFileSync(join(incidentDir, 'trace.json'), 'utf8')
@@ -212,7 +214,11 @@ export function mergeIncident(
     );
   }
 
-  const samples = loadSamples(profile);
+  const symbolicate = sourceMap ? createSymbolicator(sourceMap) : null;
+  const samples = loadSamples(profile, symbolicate);
+  const sourceMapCheck = symbolicate
+    ? checkSourceMap(symbolicate, { allowUnverified })
+    : null;
   const winStart = Math.max(
     report.window.start_ns,
     session?.start?.mono_ns ?? 0
@@ -259,6 +265,7 @@ export function mergeIncident(
     measurement:
       'statistical JS stack samples; slice durations are inferred from sample spacing',
     provenance,
+    ...(sourceMapCheck && { source_map: sourceMapCheck }),
     coverage: {
       clipped_to_ns: [winStart, winEnd],
       samples_in_window: sampled.length,

@@ -1,4 +1,5 @@
 import { hotPath, loadSamples, readSession } from './merge.mjs';
+import { checkSourceMap, createSymbolicator } from './sourcemap.mjs';
 
 function rank(counts, busy, top) {
   return [...counts.entries()]
@@ -41,9 +42,16 @@ function summarizeThread(tid, samples, spanNs, top) {
 }
 
 // Samples outside the session anchors belong to an earlier session and are dropped.
-export function summarizeSession(sessionDir, { top = 15 } = {}) {
+export function summarizeSession(
+  sessionDir,
+  { top = 15, sourceMap, allowUnverified = false } = {}
+) {
   const { profile, session } = readSession(sessionDir);
-  const all = loadSamples(profile);
+  const symbolicate = sourceMap ? createSymbolicator(sourceMap) : null;
+  const all = loadSamples(profile, symbolicate);
+  const sourceMapCheck = symbolicate
+    ? checkSourceMap(symbolicate, { allowUnverified })
+    : null;
   const startNs = session?.start?.mono_ns ?? null;
   const stopNs = session?.stop?.mono_ns ?? null;
   const samples = all.filter(
@@ -67,6 +75,7 @@ export function summarizeSession(sessionDir, { top = 15 } = {}) {
     samples: samples.length,
     samples_outside_session: all.length - samples.length,
     js_tid: session?.js_tid ?? null,
+    ...(sourceMapCheck && { source_map: sourceMapCheck }),
     threads: [...byTid.entries()]
       .map(([tid, list]) => summarizeThread(tid, list, toNs - fromNs, top))
       .sort((a, b) => b.samples - a.samples),
@@ -74,8 +83,9 @@ export function summarizeSession(sessionDir, { top = 15 } = {}) {
 }
 
 // Compares the most-sampled thread of each session by share of busy samples.
-export function diffSessions(dirA, dirB, { top = 15 } = {}) {
-  const [a, b] = [dirA, dirB].map((d) => summarizeSession(d, { top }));
+export function diffSessions(dirA, dirB, options = {}) {
+  const { top = 15 } = options;
+  const [a, b] = [dirA, dirB].map((d) => summarizeSession(d, options));
   const [ta, tb] = [a.threads[0], b.threads[0]];
   const share = (t, frame) =>
     t?.samples_with_js_stack
@@ -127,6 +137,13 @@ const pct = (x) => `${(x * 100).toFixed(1)}%`.padStart(6);
 
 export function formatSummary(s) {
   const lines = [`${s.samples} samples over ${s.duration_ms} ms (${s.bounds})`];
+  if (s.source_map)
+    lines.push(
+      `source map: ${s.source_map.mapped} of ${s.source_map.js_frames} JS frames mapped` +
+        (s.source_map.name_agreement == null
+          ? ', too few named frames to check it matches this build'
+          : `, ${(s.source_map.name_agreement * 100).toFixed(0)}% of function names agree`)
+    );
   if (s.samples_outside_session)
     lines.push(
       `dropped ${s.samples_outside_session} samples outside the session`

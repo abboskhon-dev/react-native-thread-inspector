@@ -12,9 +12,13 @@ import {
 
 const USAGE = `usage:
   rnti pull <android|ios> <app-id> [--device <id>] [--out <dir>]
-  rnti top <session-dir> [--top <n>] [--json]
-  rnti diff <session-a> <session-b> [--top <n>] [--json]
-  rnti merge [--allow-unverified] <incident-dir> <session-dir>
+  rnti top <session-dir> [--top <n>] [--json] [--sourcemap <file>]
+  rnti diff <session-a> <session-b> [--top <n>] [--json] [--sourcemap <file>]
+  rnti merge <incident-dir> <session-dir> [--sourcemap <file>]
+
+--sourcemap takes the composed Hermes map of the same build (Android:
+android/app/build/generated/sourcemaps/react/release/index.android.bundle.map).
+--allow-unverified accepts a profile or source map that fails its match check.
 
 pull copies saved incidents and sampling sessions from a device (adb) or a
 booted iOS simulator into --out (default: rnti-data).`;
@@ -24,11 +28,9 @@ function usage() {
   process.exit(2);
 }
 
-function merge([incidentDir, sessionDir], { 'allow-unverified': allow }) {
+function merge([incidentDir, sessionDir], options) {
   if (!incidentDir || !sessionDir) usage();
-  const result = mergeIncident(incidentDir, sessionDir, {
-    allowUnverified: allow,
-  });
+  const result = mergeIncident(incidentDir, sessionDir, options);
   if (!result.provenance.verified)
     console.warn(
       `unverified provenance: ${result.provenance.problems.join('; ')}`
@@ -57,16 +59,16 @@ function runPull([platform, app], { device, out }) {
   if (r.sessions.length) console.log(`latest session: ${r.sessions.at(-1)}`);
 }
 
-function top([sessionDir], { top: n, json }) {
+function top([sessionDir], options) {
   if (!sessionDir) usage();
-  const s = summarizeSession(sessionDir, { top: n });
-  console.log(json ? toJson(s) : formatSummary(s));
+  const s = summarizeSession(sessionDir, options);
+  console.log(options.json ? toJson(s) : formatSummary(s));
 }
 
-function diff([a, b], { top: n, json }) {
+function diff([a, b], options) {
   if (!a || !b) usage();
-  const d = diffSessions(a, b, { top: n });
-  console.log(json ? toJson(d) : formatDiff(d));
+  const d = diffSessions(a, b, options);
+  console.log(options.json ? toJson(d) : formatDiff(d));
 }
 
 const commands = { merge, pull: runPull, top, diff };
@@ -79,6 +81,7 @@ try {
       'allow-unverified': { type: 'boolean', default: false },
       'device': { type: 'string' },
       'out': { type: 'string' },
+      'sourcemap': { type: 'string' },
       'top': { type: 'string' },
       'json': { type: 'boolean', default: false },
     },
@@ -92,7 +95,12 @@ if (!commands[cmd]) usage();
 const limit = parsed.values.top === undefined ? 15 : Number(parsed.values.top);
 if (!Number.isInteger(limit) || limit < 1) usage();
 try {
-  commands[cmd](rest, { ...parsed.values, top: limit });
+  commands[cmd](rest, {
+    ...parsed.values,
+    top: limit,
+    sourceMap: parsed.values.sourcemap,
+    allowUnverified: parsed.values['allow-unverified'],
+  });
 } catch (e) {
   console.error(e.message);
   process.exit(1);

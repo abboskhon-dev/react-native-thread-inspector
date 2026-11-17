@@ -119,6 +119,21 @@ npx rnti merge <incident-dir> <session-dir>
 `top` and `diff` take `--top <n>` and `--json`. Absolute bundle paths are stripped from frame names;
 unnamed functions appear as `(anonymous @<bytecode address>)`.
 
+### Source maps
+
+Release bundles leave many frames unnamed. `top`, `diff` and `merge` take `--sourcemap <file>` to
+name frames from the sources, as `function (package/File.js)`:
+
+```sh
+npx rnti top <session-dir> --sourcemap android/app/build/generated/sourcemaps/react/release/index.android.bundle.map
+```
+
+It must be the composed Hermes map of the same build. The CLI checks that by comparing the function
+names Hermes kept in the bytecode with the ones the map gives, and refuses a map where fewer than
+half agree (`--allow-unverified` overrides). A frame is named after the source function at the
+sampled address, so a function Hermes inlined shows under its own name, not its caller's. Run it
+inside the app project: it uses the `metro-symbolicate` that React Native installs.
+
 ## Storage and privacy
 
 - Incidents: app container (`Application Support/rnti-incidents` on iOS, app external files on
