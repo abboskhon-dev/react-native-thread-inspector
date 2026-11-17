@@ -20,3 +20,4 @@ First release.
 - `maxSessions` option; `sampling.stop()` returns `removedSessions`.
 - `readIncident()` returns a typed `IncidentReport`.
 - Sampling sessions record CPU time per thread, and `rnti top` lists it.
+- The Android native library is aligned for 16 KB pages.

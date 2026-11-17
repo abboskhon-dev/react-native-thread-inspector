@@ -28,4 +28,6 @@ target_include_directories(rnti PRIVATE ${CORE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/
   ${REACT_NATIVE_DIR}/ReactCommon/reactperflogger)
 include(${REACT_NATIVE_DIR}/ReactAndroid/cmake-utils/folly-flags.cmake)
 target_compile_options(rnti PRIVATE -Wall -O2 -fvisibility=hidden ${folly_FLAGS})
+# 16 KB pages: Android 15+ devices and Google Play require this alignment.
+target_link_options(rnti PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries(rnti log ReactAndroid::reactnative ReactAndroid::jsi fbjni::fbjni)
