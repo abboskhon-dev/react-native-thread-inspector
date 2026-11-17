@@ -15,3 +15,7 @@ First release.
 - `rnti merge`: add sampled JS stacks to an incident.
 - `rnti top` and `rnti diff`: summarize one sampling session, or compare two.
 - `rnti pull`: copy incidents and sessions from an Android device or a booted iOS simulator.
+- `--sourcemap` for `rnti top`, `diff` and `merge`: name release frames from the composed Hermes
+  source map.
+- `maxSessions` option; `sampling.stop()` returns `removedSessions`.
+- `readIncident()` returns a typed `IncidentReport`.
