@@ -140,13 +140,14 @@ function summarize(path: string): Summary {
     const lines: string[] = [
       `#${report.id} · ${report.window.end_reason} · ${screen}`,
     ];
-    report.triggers.forEach((t: any, i: number) => {
+    report.triggers.forEach((t, i) => {
       const dur =
         t.duration_ns == null
           ? 'unrecovered'
           : `${Math.round(t.duration_ns / 1e6)} ms`;
       lines.push(`${t.source} on ${t.thread_name || `tid ${t.tid}`}: ${dur}`);
       const a = report.analysis[i];
+      if (!a) return;
       for (const f of a.findings.slice(0, 3)) {
         lines.push(
           `  ${f.relation}: ${f.label} [${f.thread_name || f.tid}] ${Math.round(f.overlap_ns / 1e6)} ms`
