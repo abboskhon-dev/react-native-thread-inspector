@@ -44,6 +44,28 @@ jobs:
       - name: Run tests
         run: yarn test
 
+  sanitizers:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [ASAN, TSAN]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ThreadSanitizer aborts on the runner's default ASLR entropy.
+      - name: Lower ASLR entropy
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Run C++ tests with ${{ matrix.sanitizer }}
+        run: |
+          cmake -S cpp -B cpp/build-san -DCMAKE_BUILD_TYPE=Debug -DRNTI_${{ matrix.sanitizer }}=ON
+          cmake --build cpp/build-san
+          ctest --test-dir cpp/build-san --output-on-failure
+
   build-library:
     runs-on: ubuntu-latest
 
