@@ -7201,7 +7201,7 @@ __metadata:
     typescript: "npm:^6.0.3"
   peerDependencies:
     react: "*"
-    react-native: "*"
+    react-native: ">=0.88.0"
   bin:
     rnti: ./cli/rnti.mjs
   languageName: unknown
