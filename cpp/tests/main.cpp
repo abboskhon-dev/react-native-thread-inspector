@@ -6,6 +6,7 @@
 #include "JsonWriter.h"
 #include "Platform.h"
 #include "Recorder.h"
+#include "ThreadCpu.h"
 #include "TurboModuleTracker.h"
 #include "Watchdog.h"
 
@@ -548,6 +549,42 @@ static void testJsonRejectsInvalidUtf8() {
   CHECK(out == "[\"ok \xc3\xa9 \xe2\x82\xac\",\"bad \\u001c\\ufffds\\u0003\\u0001\",\"cut \\ufffd\\ufffd\"]");
 }
 
+static void testThreadCpuDelta() {
+  const CpuSnapshot a{1000, 100, {{1, "js", 50}, {2, "gone", 10}, {3, "reused", 900}}};
+  const CpuSnapshot b{3000, 400, {{1, "js", 250}, {3, "reused", 40}, {4, "new", 30}, {5, "idle", 0}}};
+  CHECK(cpuDeltaJson(a, b) ==
+        R"({"wall_ns":2000,"process_ns":300,"threads":[{"tid":1,"name":"js","cpu_ns":200},{"tid":3,"name":"reused","cpu_ns":40},{"tid":4,"name":"new","cpu_ns":30}]})");
+}
+
+static void testThreadCpuSnapshotSeesBusyThread() {
+  const CpuSnapshot before = cpuSnapshot();
+  std::promise<void> spun, release;
+  std::atomic<uint32_t> tid{0};
+  std::thread busy([&] {
+    tid = currentTid();
+    const auto until = std::chrono::steady_clock::now() + 100ms;
+    while (std::chrono::steady_clock::now() < until) {
+    }
+    spun.set_value();
+    release.get_future().wait();
+  });
+  spun.get_future().wait();
+  const CpuSnapshot after = cpuSnapshot();
+  release.set_value();
+  busy.join();
+  uint64_t used = 0;
+  bool self = false;
+  for (const auto &t : after.threads) {
+    if (t.tid == tid) used = t.cpuNs;
+    if (t.tid == currentTid()) self = true;
+  }
+  // Loose bounds: a loaded machine gives the thread less than its 100 ms.
+  CHECK(used >= 20 * kMs);
+  CHECK(used < 1000 * kMs);
+  CHECK(self);
+  CHECK(after.processCpuNs >= before.processCpuNs + 20 * kMs);
+}
+
 static void testPrehistoryPinnedDuringFlood() {
   Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
   const uint32_t marker = rig.rec.intern("flood.marker");
@@ -683,6 +720,8 @@ int main() {
       {"screen context in report", testScreenContextInReport},
       {"turbomodule tracker", testTurboModuleTracker},
       {"json rejects invalid utf-8", testJsonRejectsInvalidUtf8},
+      {"thread cpu delta", testThreadCpuDelta},
+      {"thread cpu snapshot sees a busy thread", testThreadCpuSnapshotSeesBusyThread},
       {"prehistory pinned during flood", testPrehistoryPinnedDuringFlood},
       {"unrecovered hang hits max duration", testUnrecoveredHangHitsMaxDuration},
       {"export and writer", testExportAndWriter},

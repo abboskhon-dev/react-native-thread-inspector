@@ -7,6 +7,7 @@
 #include "Platform.h"
 #include "RntiFabric.h"
 #include "RntiPerfLogger.h"
+#include "ThreadCpu.h"
 
 #include <atomic>
 
@@ -91,6 +92,9 @@ std::string toString(JNIEnv *env, jstring s) {
 
 } // namespace
 
+// Only touched by sampling start and stop, which run on the JS thread.
+static CpuSnapshot gCpuMark;
+
 extern "C" {
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
@@ -171,6 +175,18 @@ JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeAck(JNIEnv *,
 
 JNIEXPORT jlong JNICALL Java_com_threadinspector_NativeBridge_nativeNowNs(JNIEnv *, jclass) {
   return static_cast<jlong>(nowNs());
+}
+
+JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeCpuMark(JNIEnv *, jclass) {
+  gCpuMark = cpuSnapshot();
+}
+
+// Bytes, not a jstring: thread names are not guaranteed to be valid Modified UTF-8.
+JNIEXPORT jbyteArray JNICALL Java_com_threadinspector_NativeBridge_nativeCpuSinceMark(JNIEnv *env, jclass) {
+  const std::string json = cpuDeltaJson(gCpuMark, cpuSnapshot());
+  jbyteArray out = env->NewByteArray(static_cast<jsize>(json.size()));
+  if (out) env->SetByteArrayRegion(out, 0, static_cast<jsize>(json.size()), reinterpret_cast<const jbyte *>(json.data()));
+  return out;
 }
 
 JNIEXPORT jint JNICALL Java_com_threadinspector_NativeBridge_nativeIntern(JNIEnv *env, jclass, jstring label) {

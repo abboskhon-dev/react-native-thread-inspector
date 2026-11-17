@@ -15,6 +15,7 @@ add_library(rnti SHARED
   ${CORE_DIR}/IncidentWriter.cpp
   ${CORE_DIR}/Inspector.cpp
   ${CORE_DIR}/Recorder.cpp
+  ${CORE_DIR}/ThreadCpu.cpp
   ${CORE_DIR}/TurboModuleTracker.cpp
   ${CORE_DIR}/Watchdog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/rn/RntiFabric.cpp
