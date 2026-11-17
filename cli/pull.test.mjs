@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { pull } from './pull.mjs';
 
@@ -69,6 +69,27 @@ test('ios copies from the simulator data container', () => {
     return `${container}\n`;
   });
   assert.deepEqual(r.sessions, [join(out, 'rnti-sessions', 'session-9')]);
+});
+
+test('sessions are listed oldest first by start time, not by name', () => {
+  const container = tmp();
+  const base = join(container, 'Library/Application Support/rnti-sessions');
+  const names = ['session-9999999', 'session-10000000', 'session-500'];
+  names.forEach((name, i) => {
+    mkdirSync(join(base, name), { recursive: true });
+    writeFileSync(
+      join(base, name, 'session.json'),
+      JSON.stringify({ start: { wall_us: i + 1 } })
+    );
+  });
+  const r = pull(
+    { platform: 'ios', app: 'com.app', out: tmp() },
+    () => container
+  );
+  assert.deepEqual(
+    r.sessions.map((p) => basename(p)),
+    names
+  );
 });
 
 test('rejects app ids that could reach the device shell', () => {

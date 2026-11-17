@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 const DIRS = { incidents: 'rnti-incidents', sessions: 'rnti-sessions' };
@@ -52,13 +58,26 @@ function pullIosSimulator({ app, device, out }, run) {
     );
 }
 
+function startedAt(sessionDir) {
+  try {
+    const file = join(sessionDir, 'session.json');
+    return JSON.parse(readFileSync(file, 'utf8')).start.wall_us ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function listed(out, kind) {
   const dir = join(out, DIRS[kind]);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  const paths = readdirSync(dir)
     .filter((n) => n.startsWith(PREFIX[kind]))
     .sort()
     .map((n) => join(dir, n));
+  if (kind !== 'sessions') return paths;
+  // Folder names carry uptime, which restarts on reboot and does not sort as text.
+  const at = new Map(paths.map((p) => [p, startedAt(p)]));
+  return paths.sort((a, b) => at.get(a) - at.get(b));
 }
 
 // Read-only on the device: copies saved incidents and sampling sessions to `out`.
