@@ -39,6 +39,12 @@ test('frame names drop host paths', () => {
     'run (main.jsbundle:1:2)'
   );
   assert.equal(frameName('(/a/b/main.jsbundle:3:4)'), '(main.jsbundle:3:4)');
+  assert.equal(
+    frameName(
+      'busy(http://localhost:8081/index.bundle//&platform=ios&dev=true&app=com.app:85902:20)'
+    ),
+    'busy (index.bundle:85902:20)'
+  );
   assert.equal(frameName(''), '(anonymous)');
 });
 

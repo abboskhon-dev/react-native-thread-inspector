@@ -8,7 +8,14 @@ const SAMPLE_TID_OFFSET = 0x7e000000;
 export function frameName(raw) {
   const name = raw || '(anonymous)';
   return name
-    .replace(/\(([^()]*\/)?([^/()]+:\d+:\d+)\)$/, (_, _dir, loc) => ` (${loc})`)
+    .replace(/\(([^()]*):(\d+:\d+)\)$/, (_, path, pos) => {
+      // Metro serves debug bundles as `index.bundle//&platform=...`.
+      const file = path
+        .split(/\?|\/\/&/)[0]
+        .split(/[\\/]/)
+        .pop();
+      return ` (${file}:${pos})`;
+    })
     .trim();
 }
 
