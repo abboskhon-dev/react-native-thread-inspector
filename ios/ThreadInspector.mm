@@ -93,7 +93,7 @@ NSString *incidentDir() {
   return [base.path stringByAppendingPathComponent:@"rnti-incidents"];
 }
 
-constexpr NSUInteger kMaxSessions = 5;
+NSUInteger gMaxSessions = 5;
 
 NSString *sessionsDir() {
   return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"rnti-sessions"];
@@ -212,6 +212,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
                                                     options:0
                                                       error:nil] ?: @{};
   NSDictionary *thr = [c[@"incidentThresholdMs"] isKindOfClass:NSDictionary.class] ? c[@"incidentThresholdMs"] : @{};
+  gMaxSessions = MAX((NSUInteger)1, (NSUInteger)msField(c, @"maxSessions", 5));
 
   InspectorConfig cfg;
   cfg.incident.prehistoryNs = msField(c, @"historyMs", 5000) * kMs;
@@ -404,9 +405,11 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
                             @"clock_domain" : @(rnti::clockDomainName())};
   [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
   NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
-  if (sessions.count > kMaxSessions) removeAll([sessions subarrayWithRange:NSMakeRange(kMaxSessions, sessions.count - kMaxSessions)]);
+  NSUInteger removed = 0;
+  if (sessions.count > gMaxSessions)
+    removed = removeAll([sessions subarrayWithRange:NSMakeRange(gMaxSessions, sessions.count - gMaxSessions)]);
   gSamplingStart = nil;
-  return jsonString(@{@"status" : @"available", @"path" : dir});
+  return jsonString(@{@"status" : @"available", @"path" : dir, @"removedSessions" : @(removed)});
 #else
   return jsonString(@{@"status" : @"unavailable"});
 #endif
