@@ -94,6 +94,8 @@ NSString *incidentDir() {
 }
 
 NSUInteger gMaxSessions = 5;
+// Chrome trace format, as Hermes dumps it.
+NSString *const kProfileFile = @"hermes.trace.json";
 
 NSString *sessionsDir() {
   return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"rnti-sessions"];
@@ -396,12 +398,12 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   NSString *dir = [sessionsDir()
       stringByAppendingPathComponent:[NSString stringWithFormat:@"session-%lld", (long long)(rnti::nowNs() / 1000000)]];
   [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-  NSString *profile = [dir stringByAppendingPathComponent:@"hermes.cpuprofile"];
+  NSString *profile = [dir stringByAppendingPathComponent:kProfileFile];
   root->dumpSampledTraceToFile(profile.UTF8String);
   root->disableSamplingProfiler();
-  NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : @"hermes.cpuprofile",
+  NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : kProfileFile,
                             @"profile_clock" : @"as emitted by Hermes; map with the anchors",
-                            @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()),
+                            @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()), @"js_tid" : @(rnti::currentTid()),
                             @"clock_domain" : @(rnti::clockDomainName())};
   [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
   NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
