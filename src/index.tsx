@@ -22,6 +22,8 @@ export type StartOptions = {
   turboModules?: boolean;
   // Read-only Fabric commit/mount hooks; commit spans include Yoga layout.
   fabric?: boolean;
+  // Lets `rnti record` start and stop sampling: adb shell on Android, a Darwin notification any process can post on iOS.
+  remoteSampling?: boolean;
 };
 
 export type CapabilityStatus =
