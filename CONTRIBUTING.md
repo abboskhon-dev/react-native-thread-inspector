@@ -39,14 +39,16 @@ when it does any of these:
 - changes the public API (`src/`), the `rnti` CLI, or a file schema (`rnti.incident/1` and friends);
 - changes what an incident claims: detection, attribution, timings, or unknowns.
 
-Small fixes, tests, docs and refactors don't need an issue. Agreeing on the approach in the issue
+Every PR links an issue; for a small fix a one-line issue is enough. Agreeing on the approach in the issue
 first saves a rewrite in review.
 
 ## Pull requests
 
 - Name the branch `feat/<slug>` when it adds or changes behaviour, or `chore/<slug>` for tooling,
   CI, docs and housekeeping. If it does both, use `feat/`.
+- Open an issue first, or find one, and start the PR body with `Closes #N`.
 - Fill in the PR template: summary, evidence, merge danger.
+- Squash-merge with the PR title as the commit subject, so it ends in `(#N)`.
 - Add an entry to `CHANGELOG.md` under `Unreleased`: a bold headline with the PR number, details as sub-bullets; build and test changes go under `Internal`.
 - Keep each PR to one change, and add a test when you fix a bug in `cpp/core` or `cli`.
 - Thread-safety changes: also run the C++ tests under sanitizers:
