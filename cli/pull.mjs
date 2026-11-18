@@ -58,6 +58,48 @@ function pullIosSimulator({ app, device, out }, run) {
     );
 }
 
+function isSimulator(device, run) {
+  const { devices } = JSON.parse(
+    run('xcrun', ['simctl', 'list', 'devices', '-j'])
+  );
+  return Object.values(devices)
+    .flat()
+    .some((d) => d.udid === device || d.name === device);
+}
+
+// devicectl reads the app data container only from development builds (get-task-allow).
+function pullIosDevice({ app, device, out }, run) {
+  let found = false;
+  for (const dir of Object.values(DIRS)) {
+    try {
+      run('xcrun', [
+        'devicectl',
+        'device',
+        'copy',
+        'from',
+        '--device',
+        device,
+        '--domain-type',
+        'appDataContainer',
+        '--domain-identifier',
+        app,
+        '--source',
+        `Library/Application Support/${dir}`,
+        '--destination',
+        join(out, dir),
+        '--quiet',
+      ]);
+    } catch {
+      continue;
+    }
+    found = true;
+  }
+  if (!found)
+    throw new Error(
+      `nothing copied from ${device}; check that it is unlocked, that ${app} is a development build, and that the app has started the inspector`
+    );
+}
+
 function startedAt(sessionDir) {
   try {
     const file = join(sessionDir, 'session.json');
@@ -87,6 +129,8 @@ export function pull({ platform, app, device, out = 'rnti-data' }, run = exec) {
     throw new Error(`invalid app id: ${app}`);
   mkdirSync(out, { recursive: true });
   if (platform === 'android') pullAndroid({ app, device, out }, run);
+  else if (platform === 'ios' && device && !isSimulator(device, run))
+    pullIosDevice({ app, device, out }, run);
   else if (platform === 'ios') pullIosSimulator({ app, device, out }, run);
   else throw new Error(`unknown platform: ${platform} (android or ios)`);
   return {
