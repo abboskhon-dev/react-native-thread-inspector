@@ -62,9 +62,11 @@ void readThreads(std::vector<ThreadCpu> &out) {
     ThreadCpu t{static_cast<uint32_t>(tid), {}, toNs(ts)};
     std::getline(std::ifstream(dirPath + "/comm"), t.name);
     std::ifstream status(dirPath + "/status");
+    static constexpr char kVoluntary[] = "voluntary_ctxt_switches:";
+    static constexpr char kInvoluntary[] = "nonvoluntary_ctxt_switches:";
     for (std::string line; std::getline(status, line);) {
-      if (line.rfind("voluntary_ctxt_switches:", 0) == 0) t.voluntarySwitches = std::strtoll(line.c_str() + 24, nullptr, 10);
-      else if (line.rfind("nonvoluntary_ctxt_switches:", 0) == 0) t.involuntarySwitches = std::strtoll(line.c_str() + 27, nullptr, 10);
+      if (line.rfind(kVoluntary, 0) == 0) t.voluntarySwitches = std::strtoll(line.c_str() + sizeof kVoluntary - 1, nullptr, 10);
+      else if (line.rfind(kInvoluntary, 0) == 0) t.involuntarySwitches = std::strtoll(line.c_str() + sizeof kInvoluntary - 1, nullptr, 10);
     }
     out.push_back(std::move(t));
   }

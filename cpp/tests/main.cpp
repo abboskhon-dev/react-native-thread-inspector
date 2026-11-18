@@ -588,6 +588,7 @@ static void testThreadCpuCountsSwitches() {
   };
   const ThreadCpu s0 = find(before, sleeperTid), s1 = find(after, sleeperTid);
   const ThreadCpu p0 = find(before, spinnerTid), p1 = find(after, spinnerTid);
+  CHECK(s1.tid == sleeperTid && p1.tid == spinnerTid);
 #if defined(__APPLE__)
   CHECK(s1.voluntarySwitches == -1 && p1.involuntarySwitches == -1);
 #else
