@@ -1,25 +1,40 @@
 # Changelog
 
-User-visible changes, newest first. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+User-visible changes, newest first. `## Unreleased` at the top is the section in progress; a
+release retitles it `## <version> — <date>`.
 
-## [Unreleased]
+## Unreleased
 
-## [0.1.0] - 2026-11-18
+### Fixed
+
+- **Calling `start()` twice no longer leaves a second long task observer running** (#22)
+  - With `longTasks: false`, `jsLongTasks` always reads `disabled`, even after a failed start.
+
+### Internal
+
+- Jest tests for the JS API against a mocked native module; `yarn test` runs them (#22).
+
+## 0.1.0 — 2026-11-18
 
 First release.
 
 ### Added
 
-- Flight recorder with JS and main thread watchdogs, explicit spans, navigation tracking, and
-  incident reports (`rnti.incident/1`) with a Perfetto trace.
-- Optional TurboModule and Fabric adapters, and bounded Hermes sampling sessions.
-- `rnti merge`: add sampled JS stacks to an incident.
-- `rnti top` and `rnti diff`: summarize one sampling session, or compare two.
-- `rnti pull`: copy incidents and sessions from an Android device or a booted iOS simulator.
-- `--sourcemap` for `rnti top`, `diff` and `merge`: name release frames from the composed Hermes
-  source map.
-- `maxSessions` option; `sampling.stop()` returns `removedSessions`.
-- `readIncident()` returns a typed `IncidentReport`.
-- Sampling sessions record CPU time per thread, and `rnti top` lists it.
-- The Android native library is aligned for 16 KB pages.
+- **Flight recorder for JS and main-thread stalls** (#16)
+  - JS and main thread watchdogs, explicit spans and navigation tracking.
+  - Each incident is saved as a report (`rnti.incident/1`) with a Perfetto trace.
+  - `readIncident()` returns a typed `IncidentReport`.
+- **Optional TurboModule and Fabric adapters, and bounded Hermes sampling sessions** (#16)
+  - `maxSessions` option; `sampling.stop()` returns `removedSessions`.
+- **`rnti` CLI** (#16)
+  - `rnti pull` copies incidents and sessions from an Android device or a booted iOS simulator.
+  - `rnti top` summarizes one sampling session; `rnti diff` compares two.
+  - `rnti merge` adds sampled JS stacks to an incident.
+  - `--sourcemap` names release frames from the composed Hermes source map.
+- **CPU time per thread in sampling sessions**, listed by `rnti top` (#19)
+- **The Android native library is aligned for 16 KB pages** (#20)
+
+### Internal
+
+- The Android benchmark takes each snapshot in one adb call and reports CPU per thread (#17).
+- CI builds the minified release and checks alignment (#20).

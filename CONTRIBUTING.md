@@ -47,7 +47,7 @@ first saves a rewrite in review.
 - Name the branch `feat/<slug>` when it adds or changes behaviour, or `chore/<slug>` for tooling,
   CI, docs and housekeeping. If it does both, use `feat/`.
 - Fill in the PR template: summary, evidence, merge danger.
-- Add a line to `CHANGELOG.md` under `Unreleased` for anything a user would notice.
+- Add an entry to `CHANGELOG.md` under `Unreleased`: a bold headline with the PR number, details as sub-bullets; build and test changes go under `Internal`.
 - Keep each PR to one change, and add a test when you fix a bug in `cpp/core` or `cli`.
 - Thread-safety changes: also run the C++ tests under sanitizers:
   `cmake -S cpp -B cpp/build-tsan -DRNTI_TSAN=ON && cmake --build cpp/build-tsan && ctest --test-dir cpp/build-tsan`
@@ -66,7 +66,7 @@ File schemas are versioned separately from the package. Adding a field keeps the
 To release:
 
 1. Open a PR that sets `version` in `package.json` and renames `Unreleased` in `CHANGELOG.md` to
-   `[x.y.z] - YYYY-MM-DD`, with a fresh empty `Unreleased` above it.
+   `x.y.z — YYYY-MM-DD`, with a fresh empty `Unreleased` above it.
 2. After it merges, tag that commit `vx.y.z` and push the tag.
 
 The tag starts the release workflow: it checks the tag against `package.json`, runs lint, types
