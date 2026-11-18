@@ -128,19 +128,25 @@ unnamed functions appear as `(anonymous @<bytecode address>)`.
 ### CPU by thread
 
 A sampling session also records how much CPU time each thread used between `sampling.start()` and
-`stop()`, so `top` shows where the CPU went when it was not in JS:
+`stop()`, and on Android how often it was switched out, so `top` shows where the CPU went when it
+was not in JS:
 
 ```
-CPU over 2828.8 ms: process 2305.6 ms (81.5% of one core), 19 threads used CPU
-    cpu ms   core  thread
-    1526.3  54.0%  spector.example (tid 6326)
-     340.0  12.0%  mqt_v_js (tid 6348, JS thread)
-     301.1  10.6%  RenderThread (tid 6339)
+CPU over 2725.3 ms: process 1788.1 ms (65.6% of one core), 18 threads used CPU
+    cpu ms   core  vol/s  invol/s  thread
+    1110.3  40.7%     73       65  spector.example (tid 5384)
+     366.0  13.4%    109       16  mqt_v_js (tid 5408, JS thread)
+      96.9   3.6%     65        5  RenderThread (tid 5396)
+      43.1   1.6%    185        3  hermes-sampling (tid 5486)
 ```
 
 It says which thread was busy, not which function. Names are the ones the OS has, so the Android
 main thread shows as the end of the package name and most iOS worker threads are unnamed. A thread
 that exits before `stop()` is counted only in the process total.
+
+`vol/s` counts the times a thread gave up the CPU to wait (sleep, lock, I/O); `invol/s` counts
+the times it was preempted. Moderate CPU with a high `vol/s` is a thread woken often for small
+jobs. iOS has no per-thread count, so its sessions have no switch columns.
 
 ### Source maps
 

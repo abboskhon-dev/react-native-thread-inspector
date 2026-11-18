@@ -10,6 +10,9 @@ struct ThreadCpu {
   uint32_t tid = 0;
   std::string name;
   uint64_t cpuNs = 0;
+  // Context switches so far; -1 where the platform has no per-thread count (iOS).
+  int64_t voluntarySwitches = -1;
+  int64_t involuntarySwitches = -1;
 };
 
 struct CpuSnapshot {

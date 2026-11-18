@@ -42,6 +42,7 @@ function summarizeThread(tid, samples, spanNs, top) {
 }
 
 const ms = (ns) => +(ns / 1e6).toFixed(1);
+const perSecond = (n, ns) => Math.round((n * 1e9) / ns);
 
 // CPU time the recorder read per thread at sampling start and stop; absent in older sessions.
 function summarizeCpu(cpu, top) {
@@ -51,10 +52,14 @@ function summarizeCpu(cpu, top) {
     name: t.name,
     cpu_ms: ms(t.cpu_ns),
     core_share: +(t.cpu_ns / cpu.wall_ns).toFixed(3),
+    ...(t.voluntary_switches != null && {
+      voluntary_per_s: perSecond(t.voluntary_switches, cpu.wall_ns),
+      involuntary_per_s: perSecond(t.involuntary_switches, cpu.wall_ns),
+    }),
   }));
   return {
     measurement:
-      'CPU time per thread between sampling start and stop; a thread that exited in between is only in the process total',
+      'CPU time and context switches per thread between sampling start and stop; a thread that exited in between is only in the process total',
     wall_ms: ms(cpu.wall_ns),
     process_cpu_ms: ms(cpu.process_ns),
     process_core_share: +(cpu.process_ns / cpu.wall_ns).toFixed(3),
@@ -174,13 +179,21 @@ export function formatSummary(s) {
   if (s.cpu) {
     lines.push(
       '',
-      `CPU over ${s.cpu.wall_ms} ms: process ${s.cpu.process_cpu_ms} ms (${pct(s.cpu.process_core_share).trim()} of one core), ${s.cpu.threads_with_cpu} threads used CPU`,
-      '    cpu ms   core  thread'
+      `CPU over ${s.cpu.wall_ms} ms: process ${s.cpu.process_cpu_ms} ms (${pct(s.cpu.process_core_share).trim()} of one core), ${s.cpu.threads_with_cpu} threads used CPU`
     );
-    for (const t of s.cpu.threads)
+    // iOS has no per-thread switch count, so its sessions have no switch columns.
+    const switches = s.cpu.threads.some((t) => t.voluntary_per_s != null);
+    lines.push(
+      `    cpu ms   core${switches ? '  vol/s  invol/s' : ''}  thread`
+    );
+    for (const t of s.cpu.threads) {
+      const sw = switches
+        ? `${String(t.voluntary_per_s ?? '-').padStart(7)} ${String(t.involuntary_per_s ?? '-').padStart(8)}`
+        : '';
       lines.push(
-        `  ${t.cpu_ms.toFixed(1).padStart(8)} ${pct(t.core_share)}  ${t.name || '(unnamed)'} (tid ${t.tid}${t.tid === s.js_tid ? ', JS thread' : ''})`
+        `  ${t.cpu_ms.toFixed(1).padStart(8)} ${pct(t.core_share)}${sw}  ${t.name || '(unnamed)'} (tid ${t.tid}${t.tid === s.js_tid ? ', JS thread' : ''})`
       );
+    }
   }
   for (const t of s.threads) {
     lines.push(

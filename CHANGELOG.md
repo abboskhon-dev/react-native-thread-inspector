@@ -5,6 +5,12 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+### Added
+
+- **`rnti top` shows context switches per thread on Android** (#27)
+  - Voluntary and involuntary switches per second, next to CPU time; a thread woken often for small jobs stands out.
+  - Recorded in `session.json` as `voluntary_switches` and `involuntary_switches`; iOS has no per-thread count and leaves them out.
+
 ### Fixed
 
 - **Calling `start()` twice no longer leaves a second long task observer running** (#22)

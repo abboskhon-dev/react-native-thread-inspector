@@ -58,9 +58,15 @@ void readThreads(std::vector<ThreadCpu> &out) {
     const auto clock = static_cast<clockid_t>((~static_cast<unsigned int>(tid) << 3) | 6u);
     timespec ts{};
     if (clock_gettime(clock, &ts) != 0) continue;
-    std::string name;
-    std::getline(std::ifstream("/proc/self/task/" + std::string(e->d_name) + "/comm"), name);
-    out.push_back({static_cast<uint32_t>(tid), std::move(name), toNs(ts)});
+    const std::string dirPath = "/proc/self/task/" + std::string(e->d_name);
+    ThreadCpu t{static_cast<uint32_t>(tid), {}, toNs(ts)};
+    std::getline(std::ifstream(dirPath + "/comm"), t.name);
+    std::ifstream status(dirPath + "/status");
+    for (std::string line; std::getline(status, line);) {
+      if (line.rfind("voluntary_ctxt_switches:", 0) == 0) t.voluntarySwitches = std::strtoll(line.c_str() + 24, nullptr, 10);
+      else if (line.rfind("nonvoluntary_ctxt_switches:", 0) == 0) t.involuntarySwitches = std::strtoll(line.c_str() + 27, nullptr, 10);
+    }
+    out.push_back(std::move(t));
   }
   closedir(dir);
 }
@@ -79,14 +85,21 @@ CpuSnapshot cpuSnapshot() {
 }
 
 std::string cpuDeltaJson(const CpuSnapshot &start, const CpuSnapshot &stop) {
-  std::unordered_map<uint32_t, uint64_t> before;
-  for (const auto &t : start.threads) before[t.tid] = t.cpuNs;
+  std::unordered_map<uint32_t, const ThreadCpu *> before;
+  for (const auto &t : start.threads) before[t.tid] = &t;
   std::vector<ThreadCpu> used;
   for (const auto &t : stop.threads) {
     const auto it = before.find(t.tid);
     // A thread that started in between, or a reused id, counts from zero.
-    const uint64_t base = it != before.end() && it->second <= t.cpuNs ? it->second : 0;
-    if (t.cpuNs > base) used.push_back({t.tid, t.name, t.cpuNs - base});
+    const ThreadCpu *b = it != before.end() && it->second->cpuNs <= t.cpuNs ? it->second : nullptr;
+    const uint64_t base = b ? b->cpuNs : 0;
+    if (t.cpuNs <= base) continue;
+    const auto delta = [&](int64_t ThreadCpu::*count) -> int64_t {
+      const int64_t now = t.*count, then = b ? b->*count : 0;
+      return now < 0 || then < 0 ? -1 : std::max<int64_t>(now - then, 0);
+    };
+    used.push_back({t.tid, t.name, t.cpuNs - base, delta(&ThreadCpu::voluntarySwitches),
+                    delta(&ThreadCpu::involuntarySwitches)});
   }
   std::sort(used.begin(), used.end(), [](const ThreadCpu &a, const ThreadCpu &b) { return a.cpuNs > b.cpuNs; });
 
@@ -100,6 +113,10 @@ std::string cpuDeltaJson(const CpuSnapshot &start, const CpuSnapshot &stop) {
     w.key("tid").u64(t.tid);
     w.key("name").str(t.name);
     w.key("cpu_ns").u64(t.cpuNs);
+    if (t.voluntarySwitches >= 0 && t.involuntarySwitches >= 0) {
+      w.key("voluntary_switches").u64(static_cast<uint64_t>(t.voluntarySwitches));
+      w.key("involuntary_switches").u64(static_cast<uint64_t>(t.involuntarySwitches));
+    }
     w.endObject();
   }
   w.endArray();

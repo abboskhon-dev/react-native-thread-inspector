@@ -550,10 +550,52 @@ static void testJsonRejectsInvalidUtf8() {
 }
 
 static void testThreadCpuDelta() {
-  const CpuSnapshot a{1000, 100, {{1, "js", 50}, {2, "gone", 10}, {3, "reused", 900}}};
-  const CpuSnapshot b{3000, 400, {{1, "js", 250}, {3, "reused", 40}, {4, "new", 30}, {5, "idle", 0}}};
+  const CpuSnapshot a{1000, 100, {{1, "js", 50, 10, 1}, {2, "gone", 10}, {3, "reused", 900, 70, 7}, {6, "ios", 5}}};
+  const CpuSnapshot b{3000, 400, {{1, "js", 250, 15, 3}, {3, "reused", 40, 4, 0}, {4, "new", 30, 2, 2}, {5, "idle", 0}, {6, "ios", 8}}};
   CHECK(cpuDeltaJson(a, b) ==
-        R"({"wall_ns":2000,"process_ns":300,"threads":[{"tid":1,"name":"js","cpu_ns":200},{"tid":3,"name":"reused","cpu_ns":40},{"tid":4,"name":"new","cpu_ns":30}]})");
+        R"({"wall_ns":2000,"process_ns":300,"threads":[{"tid":1,"name":"js","cpu_ns":200,"voluntary_switches":5,"involuntary_switches":2},{"tid":3,"name":"reused","cpu_ns":40,"voluntary_switches":4,"involuntary_switches":0},{"tid":4,"name":"new","cpu_ns":30,"voluntary_switches":2,"involuntary_switches":2},{"tid":6,"name":"ios","cpu_ns":3}]})");
+}
+
+// A thread that sleeps between short jobs switches voluntarily about once per wake-up; a busy loop almost never does.
+static void testThreadCpuCountsSwitches() {
+  std::atomic<uint32_t> sleeperTid{0}, spinnerTid{0};
+  std::atomic<int> phase{0}; // 0 setup, 1 run, 2 snapshot taken
+  std::atomic<bool> slept{false};
+  std::thread sleeper([&] {
+    sleeperTid = currentTid();
+    while (phase == 0) std::this_thread::yield();
+    for (int i = 0; i < 50; ++i) std::this_thread::sleep_for(2ms);
+    slept = true;
+    while (phase != 2) std::this_thread::sleep_for(1ms);
+  });
+  std::thread spinner([&] {
+    spinnerTid = currentTid();
+    while (phase != 2) {
+    }
+  });
+  while (!sleeperTid || !spinnerTid) std::this_thread::yield();
+  const CpuSnapshot before = cpuSnapshot();
+  phase = 1;
+  while (!slept) std::this_thread::sleep_for(1ms);
+  const CpuSnapshot after = cpuSnapshot();
+  phase = 2;
+  sleeper.join();
+  spinner.join();
+  const auto find = [](const CpuSnapshot &snap, uint32_t tid) {
+    for (const auto &t : snap.threads)
+      if (t.tid == tid) return t;
+    return ThreadCpu{};
+  };
+  const ThreadCpu s0 = find(before, sleeperTid), s1 = find(after, sleeperTid);
+  const ThreadCpu p0 = find(before, spinnerTid), p1 = find(after, spinnerTid);
+#if defined(__APPLE__)
+  CHECK(s1.voluntarySwitches == -1 && p1.involuntarySwitches == -1);
+#else
+  CHECK(s1.voluntarySwitches - s0.voluntarySwitches >= 50);
+  CHECK(s1.voluntarySwitches - s0.voluntarySwitches < 200);
+  CHECK(p1.voluntarySwitches - p0.voluntarySwitches <= 5);
+  CHECK(p0.involuntarySwitches >= 0);
+#endif
 }
 
 static void testThreadCpuSnapshotSeesBusyThread() {
@@ -722,6 +764,7 @@ int main() {
       {"json rejects invalid utf-8", testJsonRejectsInvalidUtf8},
       {"thread cpu delta", testThreadCpuDelta},
       {"thread cpu snapshot sees a busy thread", testThreadCpuSnapshotSeesBusyThread},
+      {"thread cpu counts context switches", testThreadCpuCountsSwitches},
       {"prehistory pinned during flood", testPrehistoryPinnedDuringFlood},
       {"unrecovered hang hits max duration", testUnrecoveredHangHitsMaxDuration},
       {"export and writer", testExportAndWriter},
