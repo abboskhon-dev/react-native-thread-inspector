@@ -33,7 +33,8 @@ One module, `ThreadInspector`, codegen name `ThreadInspectorSpec` (`codegenConfi
 
 App code calls the inspector through `RNThreadInspector` (Kotlin object in
 `android/.../RNThreadInspector.kt`; Objective-C class in `ios/RNThreadInspector.h`, the pod's only
-public header, importable from Swift because the podspec sets `DEFINES_MODULE`). Keep the two
+public header, importable from Swift because the podspec sets `DEFINES_MODULE`; Swift's generic
+`measure` that returns the block's result is in `ios/RNThreadInspector.swift`). Keep the two
 APIs matching. Every call there must be a no-op before `start()`.
 
 ## Capabilities
