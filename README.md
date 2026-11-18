@@ -122,7 +122,7 @@ npx rnti merge <incident-dir> <session-dir>
   fails after 5 s. Sampling runs at 100 Hz on iOS; Android's profiler has no rate setting.
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
   only reads from the device. On iOS it reads the booted simulator, or the simulator or
-  iPhone named by `--device`; an iPhone needs a development build.
+  iPhone whose UDID is given with `--device`; an iPhone needs a development build.
 - `top` summarizes one sampling session: CPU time per thread, how often the JS thread had a stack,
   hot path, and top frames by self time. Samples from before the session started are dropped and
   counted.

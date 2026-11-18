@@ -80,7 +80,7 @@ test('ios copies from a physical device with devicectl', () => {
       return JSON.stringify({
         devices: { 'iOS-26': [{ udid: 'SIM-1', name: 'iPhone 17' }] },
       });
-    if (args.at(-3).endsWith('rnti-sessions')) throw new Error('no such file');
+    if (args.at(-4).endsWith('rnti-sessions')) throw new Error('no such file');
     mkdirSync(join(args.at(-2), 'incident-x-1'), { recursive: true });
     return '';
   };
@@ -93,6 +93,7 @@ test('ios copies from a physical device with devicectl', () => {
     `xcrun devicectl device copy from --device PHONE-1 --domain-type appDataContainer --domain-identifier com.app --source Library/Application Support/rnti-incidents --destination ${join(out, 'rnti-incidents')} --quiet`
   );
   assert.equal(r.incidents.length, 1);
+  assert.equal(r.sessions.length, 0);
   assert.throws(
     () =>
       pull(
@@ -102,11 +103,11 @@ test('ios copies from a physical device with devicectl', () => {
           throw new Error('device locked');
         }
       ),
-    /development build/
+    /development build.*device locked/
   );
 });
 
-test('ios --device naming a simulator reads its container', () => {
+test('ios --device with a simulator udid reads its container', () => {
   const container = tmp();
   mkdirSync(
     join(container, 'Library/Application Support/rnti-incidents/incident-1'),
@@ -115,7 +116,7 @@ test('ios --device naming a simulator reads its container', () => {
     }
   );
   const r = pull(
-    { platform: 'ios', app: 'com.app', device: 'iPhone 17', out: tmp() },
+    { platform: 'ios', app: 'com.app', device: 'SIM-1', out: tmp() },
     (cmd, args) => {
       if (args[1] === 'list')
         return JSON.stringify({
@@ -124,7 +125,7 @@ test('ios --device naming a simulator reads its container', () => {
       assert.deepEqual(args, [
         'simctl',
         'get_app_container',
-        'iPhone 17',
+        'SIM-1',
         'com.app',
         'data',
       ]);

@@ -58,18 +58,20 @@ function pullIosSimulator({ app, device, out }, run) {
     );
 }
 
+// UDID only: devicectl also takes names, and a phone may share a simulator's name.
 function isSimulator(device, run) {
   const { devices } = JSON.parse(
     run('xcrun', ['simctl', 'list', 'devices', '-j'])
   );
   return Object.values(devices)
     .flat()
-    .some((d) => d.udid === device || d.name === device);
+    .some((d) => d.udid === device);
 }
 
 // devicectl reads the app data container only from development builds (get-task-allow).
 function pullIosDevice({ app, device, out }, run) {
   let found = false;
+  let lastError;
   for (const dir of Object.values(DIRS)) {
     try {
       run('xcrun', [
@@ -89,14 +91,15 @@ function pullIosDevice({ app, device, out }, run) {
         join(out, dir),
         '--quiet',
       ]);
-    } catch {
+    } catch (e) {
+      lastError = e.stderr?.trim() || e.message;
       continue;
     }
     found = true;
   }
   if (!found)
     throw new Error(
-      `nothing copied from ${device}; check that it is unlocked, that ${app} is a development build, and that the app has started the inspector`
+      `nothing copied from ${device}; check that it is unlocked, that ${app} is a development build, and that the app has started the inspector (devicectl: ${lastError})`
     );
 }
 
