@@ -2,6 +2,7 @@
 import { parseArgs } from 'node:util';
 import { mergeIncident } from './merge.mjs';
 import { pull } from './pull.mjs';
+import { record } from './record.mjs';
 import {
   diffSessions,
   formatDiff,
@@ -11,6 +12,7 @@ import {
 } from './top.mjs';
 
 const USAGE = `usage:
+  rnti record <start|stop> <android|ios> <app-id> [--device <id>]
   rnti pull <android|ios> <app-id> [--device <id>] [--out <dir>]
   rnti top <session-dir> [--top <n>] [--json] [--sourcemap <file>]
   rnti diff <session-a> <session-b> [--top <n>] [--json] [--sourcemap <file>]
@@ -20,6 +22,8 @@ const USAGE = `usage:
 android/app/build/generated/sourcemaps/react/release/index.android.bundle.map).
 --allow-unverified accepts a profile or source map that fails its match check.
 
+record starts or stops Hermes sampling in a running app that called
+start({ remoteSampling: true }); Android over adb, iOS on a booted simulator.
 pull copies saved incidents and sampling sessions from a device (adb) or a
 booted iOS simulator into --out (default: rnti-data).`;
 
@@ -59,6 +63,13 @@ function runPull([platform, app], { device, out }) {
   if (r.sessions.length) console.log(`latest session: ${r.sessions.at(-1)}`);
 }
 
+async function runRecord([cmd, platform, app], { device }) {
+  if (!cmd || !platform || !app) usage();
+  const r = await record({ cmd, platform, app, device });
+  console.log(JSON.stringify(r));
+  if (r.status !== 'available') process.exitCode = 1;
+}
+
 function top([sessionDir], options) {
   if (!sessionDir) usage();
   const s = summarizeSession(sessionDir, options);
@@ -71,7 +82,7 @@ function diff([a, b], options) {
   console.log(options.json ? toJson(d) : formatDiff(d));
 }
 
-const commands = { merge, pull: runPull, top, diff };
+const commands = { merge, pull: runPull, record: runRecord, top, diff };
 
 let parsed;
 try {
@@ -95,7 +106,7 @@ if (!commands[cmd]) usage();
 const limit = parsed.values.top === undefined ? 15 : Number(parsed.values.top);
 if (!Number.isInteger(limit) || limit < 1) usage();
 try {
-  commands[cmd](rest, {
+  await commands[cmd](rest, {
     ...parsed.values,
     top: limit,
     sourceMap: parsed.values.sourcemap,

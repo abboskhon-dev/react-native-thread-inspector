@@ -29,6 +29,7 @@ const startDemo = () => {
     cooldownMs: 1_500,
     turboModules: true,
     fabric: true,
+    remoteSampling: true,
   });
 };
 

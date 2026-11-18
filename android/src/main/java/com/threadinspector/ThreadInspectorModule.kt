@@ -1,5 +1,9 @@
 package com.threadinspector
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Handler
@@ -76,6 +80,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     if (fresh) recorderSessionId = sessionId
     context.removeLifecycleEventListener(this)
     context.addLifecycleEventListener(this)
+    setRemoteSampling(c.optBoolean("remoteSampling", false))
 
     return JSONObject().apply {
       put("jsWatchdog", status("available"))
@@ -99,9 +104,50 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       put("frameTimings", status("unavailable", "not implemented in this build"))
       put("hermesSamples", status("disabled"))
       put("systemScheduling", status("unavailable", "no system trace attached"))
+      put(
+        "remoteSampling",
+        if (c.optBoolean("remoteSampling", false)) status("available", "adb shell only")
+        else status("disabled", "opt in with remoteSampling: true"),
+      )
       put("config", status(if (fresh) "available" else "partial", if (fresh) null else "recorder already running; first config kept"))
       put("incidentDirectory", dir.absolutePath)
     }.toString()
+  }
+
+  @Volatile private var remoteReceiver: BroadcastReceiver? = null
+
+  // Only senders holding DUMP can reach the receiver: adb shell and the system, never another app.
+  private fun setRemoteSampling(enabled: Boolean) {
+    val context = reactApplicationContext
+    if (!enabled) {
+      remoteReceiver?.let { runCatching { context.unregisterReceiver(it) } }
+      remoteReceiver = null
+      return
+    }
+    if (remoteReceiver != null) return
+    val receiver = object : BroadcastReceiver() {
+      override fun onReceive(c: Context, intent: Intent) {
+        val cmd = intent.getStringExtra("cmd")
+        val pending = goAsync()
+        // Same thread as JS calls, so session.json records the JS thread id.
+        val queued = context.runOnJSQueueThread {
+          pending.resultData = when (cmd) {
+            "start" -> startHermesSampling(100.0)
+            "stop" -> stopHermesSampling()
+            else -> status("error", "unknown cmd: $cmd").toString()
+          }
+          pending.finish()
+        }
+        if (!queued) {
+          pending.resultData = status("error", "no JS thread").toString()
+          pending.finish()
+        }
+      }
+    }
+    val filter = IntentFilter(REMOTE_SAMPLING_ACTION)
+    if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, android.Manifest.permission.DUMP, null, Context.RECEIVER_EXPORTED)
+    else context.registerReceiver(receiver, filter, android.Manifest.permission.DUMP, null)
+    remoteReceiver = receiver
   }
 
   private fun status(s: String, reason: String? = null) =
@@ -266,6 +312,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun onHostDestroy() = Unit
 
   override fun invalidate() {
+    setRemoteSampling(false)
     reactApplicationContext.removeLifecycleEventListener(this)
     NativeBridge.jsPoster = null
     NativeBridge.savedListener = null
@@ -274,6 +321,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = NativeThreadInspectorSpec.NAME
+    private const val REMOTE_SAMPLING_ACTION = "com.threadinspector.SAMPLING"
     private const val DEFAULT_MAX_SESSIONS = 5
     // Chrome trace format, as Hermes dumps it.
     private const val PROFILE_FILE = "hermes.trace.json"

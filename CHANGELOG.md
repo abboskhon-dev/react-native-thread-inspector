@@ -7,6 +7,9 @@ release retitles it `## <version> — <date>`.
 
 ### Added
 
+- **`rnti record start|stop` samples a running app from your computer** (#28)
+  - Opt in with `start({ remoteSampling: true })`; Android listens to adb shell only, iOS to a Darwin notification on the simulator.
+  - `start()` reports it as the `remoteSampling` capability.
 - **`rnti top` shows context switches per thread on Android** (#27)
   - Voluntary and involuntary switches per second, next to CPU time; a thread woken often for small jobs stands out.
   - Recorded in `session.json` as `voluntary_switches` and `involuntary_switches`; iOS has no per-thread count and leaves them out.

@@ -102,6 +102,44 @@ NSString *sessionsDir() {
   return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"rnti-sessions"];
 }
 
+NSString *remoteSamplingName(NSString *cmd) {
+  return [NSString stringWithFormat:@"%@.rnti.sampling.%@", NSBundle.mainBundle.bundleIdentifier ?: @"", cmd];
+}
+
+NSString *remoteSamplingFile(NSString *name) {
+  return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:name];
+}
+
+// Darwin notifications carry no payload, so `rnti record` passes a request id in a file and reads the reply from another.
+void writeRemoteSamplingReply(long long request, NSString *json) {
+  NSString *wrapped = [NSString stringWithFormat:@"{\"request\":%lld,\"reply\":%@}", request, json];
+  [[wrapped dataUsingEncoding:NSUTF8StringEncoding] writeToFile:remoteSamplingFile(@"rnti-record-reply.json") atomically:YES];
+}
+
+// Darwin notifications arrive on the main thread; sampling calls belong on the JS thread like the JS API's.
+void onRemoteSampling(CFNotificationCenterRef, void *, CFNotificationName name, const void *, CFDictionaryRef) {
+  const bool start = [(__bridge NSString *)name isEqualToString:remoteSamplingName(@"start")];
+  NSString *requestFile = remoteSamplingFile(start ? @"rnti-record-start.request" : @"rnti-record-stop.request");
+  const long long request = [[NSString stringWithContentsOfFile:requestFile encoding:NSUTF8StringEncoding error:nil] longLongValue];
+  const bool queued = postToJs([start, request] {
+    ThreadInspector *module = gModule;
+    NSString *result = start ? [module startHermesSampling:100] : [module stopHermesSampling];
+    writeRemoteSamplingReply(request, result ?: @"{\"status\":\"error\",\"reason\":\"module gone\"}");
+  });
+  if (!queued) writeRemoteSamplingReply(request, @"{\"status\":\"error\",\"reason\":\"no JS thread\"}");
+}
+
+// Any process on the device can post a Darwin notification, so this stays off unless the app opts in.
+void setRemoteSampling(bool enabled) {
+  CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
+  for (NSString *cmd in @[ @"start", @"stop" ]) {
+    CFNotificationCenterRemoveObserver(center, &gModule, (__bridge CFStringRef)remoteSamplingName(cmd), nullptr);
+    if (enabled)
+      CFNotificationCenterAddObserver(center, &gModule, onRemoteSampling, (__bridge CFStringRef)remoteSamplingName(cmd), nullptr,
+                                      CFNotificationSuspensionBehaviorDeliverImmediately);
+  }
+}
+
 // Only finished entries carry the prefix; in-progress writes use dot-prefixed temp names.
 NSArray<NSString *> *entries(NSString *dir, NSString *prefix) {
   NSFileManager *fm = NSFileManager.defaultManager;
@@ -235,6 +273,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   const bool wantTurboModules = cfg.turboModules;
   cfg.fabric = [c[@"fabric"] isKindOfClass:NSNumber.class] && [c[@"fabric"] boolValue];
   const bool wantFabric = cfg.fabric;
+  const bool wantRemoteSampling = [c[@"remoteSampling"] isKindOfClass:NSNumber.class] && [c[@"remoteSampling"] boolValue];
 
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -267,6 +306,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
   if (wantTurboModules) installTurboModulePerfLogger(ins);
   ins.start(true);
   installRunLoopObserver();
+  setRemoteSampling(wantRemoteSampling);
 
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc removeObserver:self];
@@ -295,6 +335,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
     @"frameTimings" : status(@"partial", @"main run loop busy intervals only"),
     @"hermesSamples" : status(@"disabled"),
     @"systemScheduling" : status(@"unavailable", @"no system trace attached"),
+    @"remoteSampling" : wantRemoteSampling ? status(@"available", @"any process on the device can post the notification")
+                                           : status(@"disabled", @"opt in with remoteSampling: true"),
     @"config" : created ? status(@"available") : status(@"partial", @"recorder already running; first config kept"),
     @"incidentDirectory" : dir,
   };
@@ -482,6 +524,7 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
 
 - (void)invalidate
 {
+  setRemoteSampling(false);
   [NSNotificationCenter.defaultCenter removeObserver:self];
   std::lock_guard<std::mutex> lk(gInvokerMu);
   gJsInvoker.reset();
