@@ -697,11 +697,19 @@ static void testOverlappingTriggersOnSeparateTracks() {
   CHECK(tidOf("js_long_task") != tidOf("js_watchdog"));
 }
 
+static void testDeliberateRace() {
+  int shared = 0;
+  std::thread t([&] { for (int i = 0; i < 1000; ++i) shared++; });
+  for (int i = 0; i < 1000; ++i) shared++;
+  t.join();
+}
+
 int main() {
   struct Case {
     const char *name;
     void (*fn)();
   } cases[] = {
+      {"deliberate race", testDeliberateRace},
       {"ring basic", testRingBasic},
       {"overlapping triggers on separate tracks", testOverlappingTriggersOnSeparateTracks},
       {"ring wrap", testRingWrap},
