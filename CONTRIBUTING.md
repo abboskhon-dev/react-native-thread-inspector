@@ -29,6 +29,8 @@ yarn example ios       # or: yarn example android
 - `ios/`, `android/`: platform modules, probe posting, Hermes sampling.
 - `src/`: TypeScript API. `cli/`: the `rnti` commands and their tests.
 - `benchmarks/`: overhead harness and recorded results.
+- `.claude/skills/`: the process and the subsystems written for coding agents (flow, checks,
+  threads, TurboModules, benchmarks). Update the matching skill when a rule here changes.
 
 ## Issues
 
