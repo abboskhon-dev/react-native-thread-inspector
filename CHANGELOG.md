@@ -28,6 +28,7 @@ release retitles it `## <version> — <date>`.
 
 ### Internal
 
+- Claude Code skills in `.claude/skills/` for the flow, checks, thread model, TurboModules and benchmarks (#34).
 - Jest tests for the JS API against a mocked native module; `yarn test` runs them (#22).
 
 ## 0.1.0 — 2026-11-18
