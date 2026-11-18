@@ -97,13 +97,13 @@ Native work without a span shows up only as unattributed time. Wrap it in a span
 ```kotlin
 import com.threadinspector.RNThreadInspector
 
-RNThreadInspector.measure("image.decode") { decode(bytes) }
+val image = RNThreadInspector.measure("image.decode") { decode(bytes) }
 ```
 
 ```swift
 import ThreadInspector
 
-RNThreadInspector.measure("image.decode") { decode(data) }
+let image = try RNThreadInspector.measure("image.decode") { try decode(data) }
 ```
 
 A span on the stalled thread is reported as `direct_containment`. For work that starts on one thread and finishes on another, pass the same flow id to each span, and the report links them as `explicit_flow`:

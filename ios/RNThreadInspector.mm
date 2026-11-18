@@ -3,22 +3,31 @@
 #include "Inspector.h"
 
 #include <mutex>
+#include <shared_mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 using namespace rnti;
 
 namespace {
 
-std::mutex gLabelsMu;
-std::unordered_map<std::string, uint32_t> gLabels;
+struct StringHash {
+  using is_transparent = void;
+  size_t operator()(std::string_view s) const noexcept { return std::hash<std::string_view>{}(s); }
+};
+
+std::shared_mutex gLabelsMu;
+std::unordered_map<std::string, uint32_t, StringHash, std::equal_to<>> gLabels;
 
 // Recorder::intern is not for hot paths, so labels are cached; the inspector is never torn down.
 uint32_t label(Inspector &ins, NSString *name) {
-  const std::string key = name.UTF8String ?: "";
-  std::lock_guard<std::mutex> lk(gLabelsMu);
-  auto it = gLabels.find(key);
-  if (it != gLabels.end()) return it->second;
+  const std::string_view key = name.UTF8String ?: "";
+  {
+    std::shared_lock<std::shared_mutex> lk(gLabelsMu);
+    if (auto it = gLabels.find(key); it != gLabels.end()) return it->second;
+  }
+  std::lock_guard<std::shared_mutex> lk(gLabelsMu);
   const uint32_t id = ins.recorder().intern(key);
   if (id != 0) gLabels.emplace(key, id);
   return id;
@@ -42,13 +51,15 @@ uint32_t label(Inspector &ins, NSString *name) {
 + (RNTISpan)begin:(NSString *)name flowId:(uint64_t)flowId
 {
   Inspector *ins = Inspector::shared();
-  if (!ins) return {0, 0};
+  if (!ins || !ins->recorder().enabled()) return {0, 0};
   const uint32_t id = label(*ins, name);
   return {id, ins->recorder().begin(Category::Native, id, flowId)};
 }
 
 + (void)end:(RNTISpan)span
 {
+  // A span begun before start() has no Begin; ending it would record a phantom truncated span.
+  if (span.spanId == 0) return;
   if (Inspector *ins = Inspector::shared()) ins->recorder().end(Category::Native, span.label, span.spanId);
 }
 
