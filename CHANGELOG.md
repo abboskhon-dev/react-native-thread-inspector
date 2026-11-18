@@ -16,6 +16,8 @@ release retitles it `## <version> — <date>`.
 
 ### Fixed
 
+- **Ending a span begun before `start()` no longer records a fake span** (#36)
+  - It showed up as an `(unknown)` span from the start of the window, and could be blamed for a stall. Affects JS, Android and iOS spans.
 - **Calling `start()` twice no longer leaves a second long task observer running** (#22)
   - With `longTasks: false`, `jsLongTasks` always reads `disabled`, even after a failed start.
 
