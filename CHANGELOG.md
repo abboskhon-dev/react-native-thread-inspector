@@ -7,6 +7,9 @@ release retitles it `## <version> — <date>`.
 
 ### Added
 
+- **Native spans for iOS app code** (#33)
+  - `RNThreadInspector` (`measure`, `begin`/`end`, `newFlow`, `nameCurrentThread`) from Swift or Objective-C, matching the Android API.
+  - The README documents native spans on both platforms.
 - **`rnti pull ios --device <udid>` copies from a physical iPhone** (#32)
   - Uses `xcrun devicectl`; the app must be a development build. A simulator UDID still reads the simulator's container.
 - **`rnti record start|stop` samples a running app from your computer** (#28)

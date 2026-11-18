@@ -90,6 +90,31 @@ TI.onIncidentSaved(({ path }) => {
 | `TI.sampling.start(hz)` / `stop()` | Hermes JS stack samples for a bounded session | Separate overhead; Android ignores `hz` (~100 Hz) |
 | `useObservedCommit(name)` / `<ObservedCommit>` | Commit timestamp of one instrumented subtree | Not all React commits, not render time, not display time |
 
+### Native spans
+
+Native work without a span shows up only as unattributed time. Wrap it in a span from app code; the calls do nothing until `start()` has run.
+
+```kotlin
+import com.threadinspector.RNThreadInspector
+
+val image = RNThreadInspector.measure("image.decode") { decode(bytes) }
+```
+
+```swift
+import ThreadInspector
+
+let image = try RNThreadInspector.measure("image.decode") { try decode(data) }
+```
+
+A span on the stalled thread is reported as `direct_containment`. For work that starts on one thread and finishes on another, pass the same flow id to each span, and the report links them as `explicit_flow`:
+
+```swift
+let flow = RNThreadInspector.newFlow()
+queue.async { RNThreadInspector.measure("upload.encode", flowId: flow) { encode() } }
+```
+
+`begin`/`end` cover work that does not fit in a block, and `nameCurrentThread` names a worker thread in the trace. Objective-C uses the same class: `[RNThreadInspector measure:@"image.decode" block:^{ ... }]`.
+
 ## What an incident contains
 
 `incident.json` (`rnti.incident/1`):
