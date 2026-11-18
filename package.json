@@ -46,8 +46,9 @@
     "prepare": "bob build",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
-    "test": "yarn test:cli && yarn test:cpp",
+    "test": "yarn test:cli && yarn test:js && yarn test:cpp",
     "test:cli": "node --test cli/*.test.mjs",
+    "test:js": "jest",
     "test:cpp": "cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Debug && cmake --build cpp/build && ctest --test-dir cpp/build --output-on-failure"
   },
   "keywords": [
@@ -74,12 +75,14 @@
     "@eslint/js": "^9.39.5",
     "@react-native/babel-preset": "0.88.1",
     "@react-native/eslint-config": "0.88.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "^19.2.0",
     "del-cli": "^8.0.1",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-ft-flow": "^3.0.11",
     "eslint-plugin-prettier": "^5.5.7",
+    "jest": "^30.5.2",
     "prettier": "^3.9.10",
     "react": "19.3.0",
     "react-native": "0.88.1",
@@ -135,5 +138,11 @@
       "eslint"
     ],
     "version": "0.64.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/src"
+    ]
   }
 }
