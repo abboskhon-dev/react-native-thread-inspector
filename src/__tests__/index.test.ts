@@ -43,7 +43,7 @@ function stubClock(brackets: [j0: number, nativeNs: number, j1: number][]) {
 }
 
 describe('calibrateClock', () => {
-  it('uses the narrowest JS bracket around the mockNative read', () => {
+  it('uses the narrowest JS bracket around the native read', () => {
     stubClock([
       [10, 50e6, 14],
       [20, 1020.5e6, 21],
@@ -65,7 +65,9 @@ describe('long task observer', () => {
     });
   });
 
-  it('is disabled when longTasks is false', () => {
+  it('is disabled when longTasks is false, even after a failed start', () => {
+    rnti.start();
+    rnti.stop();
     expect(rnti.start({ longTasks: false }).jsLongTasks).toEqual({
       status: 'disabled',
       reason: 'not requested',
@@ -82,26 +84,44 @@ describe('long task observer', () => {
     });
   });
 
-  it('reports long tasks on the mockNative clock and disconnects on stop', () => {
-    let callback: (list: any) => void = () => {};
-    const disconnect = jest.fn();
+  function stubObserver() {
+    const observers: {
+      callback: (list: any) => void;
+      disconnect: jest.Mock;
+    }[] = [];
     (globalThis as any).PerformanceObserver = class {
       static supportedEntryTypes = ['longtask'];
-      constructor(cb: (list: any) => void) {
-        callback = cb;
+      disconnect = jest.fn();
+      constructor(callback: (list: any) => void) {
+        observers.push({ callback, disconnect: this.disconnect });
       }
       observe() {}
-      disconnect = disconnect;
     };
+    return observers;
+  }
+
+  it('reports long tasks on the native clock and disconnects on stop', () => {
+    const observers = stubObserver();
     stubClock(Array.from({ length: 7 }, () => [0, 1000e6, 0]));
 
     expect(rnti.start().jsLongTasks).toEqual({ status: 'available' });
-    callback({ getEntries: () => [{ startTime: 2, duration: 80 }] });
+    observers[0]!.callback({
+      getEntries: () => [{ startTime: 2, duration: 80 }],
+    });
     expect(mockNative.reportLongTask).toHaveBeenCalledWith(1002e6, 80e6);
 
     rnti.stop();
-    expect(disconnect).toHaveBeenCalled();
+    expect(observers[0]!.disconnect).toHaveBeenCalled();
     expect(mockNative.stop).toHaveBeenCalled();
+  });
+
+  it('keeps one observer when start is called twice', () => {
+    const observers = stubObserver();
+    rnti.start();
+    rnti.start();
+    expect(observers).toHaveLength(2);
+    expect(observers[0]!.disconnect).toHaveBeenCalled();
+    expect(observers[1]!.disconnect).not.toHaveBeenCalled();
   });
 });
 

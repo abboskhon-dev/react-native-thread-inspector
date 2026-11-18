@@ -44,7 +44,7 @@ declare const performance: { now(): number };
 const labels = new Map<string, number>();
 let calibration: ClockCalibration | null = null;
 let longTaskObserver: { disconnect(): void } | null = null;
-let longTaskReason = 'not requested';
+let longTaskReason = '';
 
 function labelId(label: string): number {
   let id = labels.get(label);
@@ -111,13 +111,16 @@ export function start(options: StartOptions = {}): Capabilities {
     Native.start(JSON.stringify(options))
   );
   calibrateClock();
-  if (options.longTasks !== false) installLongTaskObserver();
+  longTaskObserver?.disconnect();
+  longTaskObserver = null;
+  if (options.longTasks === false) {
+    capabilities.jsLongTasks = { status: 'disabled', reason: 'not requested' };
+    return capabilities;
+  }
+  installLongTaskObserver();
   capabilities.jsLongTasks = longTaskObserver
     ? { status: 'available' }
-    : {
-        status: options.longTasks === false ? 'disabled' : 'unavailable',
-        reason: longTaskReason,
-      };
+    : { status: 'unavailable', reason: longTaskReason };
   return capabilities;
 }
 
