@@ -109,7 +109,7 @@ TI.onIncidentSaved(({ path }) => {
 ```sh
 npx rnti record start android <app-id>   # or: ios <bundle-id> (booted simulator)
 npx rnti record stop android <app-id>
-npx rnti pull android <app-id>           # or: ios <bundle-id> (booted simulator)
+npx rnti pull android <app-id>           # or: ios <bundle-id> [--device <udid>]
 npx rnti top <session-dir>
 npx rnti diff <session-a> <session-b>
 npx rnti merge <incident-dir> <session-dir>
@@ -121,7 +121,8 @@ npx rnti merge <incident-dir> <session-dir>
   you ship. Both print the app's reply, with the session path after `stop`; an app that did not opt in
   fails after 5 s. Sampling runs at 100 Hz on iOS; Android's profiler has no rate setting.
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
-  only reads from the device. Physical iOS devices are not supported yet.
+  only reads from the device. On iOS it reads the booted simulator, or the simulator or
+  iPhone whose UDID is given with `--device`; an iPhone needs a development build.
 - `top` summarizes one sampling session: CPU time per thread, how often the JS thread had a stack,
   hot path, and top frames by self time. Samples from before the session started are dropped and
   counted.

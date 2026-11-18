@@ -7,6 +7,8 @@ release retitles it `## <version> — <date>`.
 
 ### Added
 
+- **`rnti pull ios --device <udid>` copies from a physical iPhone** (#32)
+  - Uses `xcrun devicectl`; the app must be a development build. A simulator UDID still reads the simulator's container.
 - **`rnti record start|stop` samples a running app from your computer** (#28)
   - Opt in with `start({ remoteSampling: true })`; Android listens to adb shell only, iOS to a Darwin notification on the simulator.
   - `start()` reports it as the `remoteSampling` capability.

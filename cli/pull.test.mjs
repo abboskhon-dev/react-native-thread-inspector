@@ -71,6 +71,70 @@ test('ios copies from the simulator data container', () => {
   assert.deepEqual(r.sessions, [join(out, 'rnti-sessions', 'session-9')]);
 });
 
+test('ios copies from a physical device with devicectl', () => {
+  const out = tmp();
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push([cmd, ...args].join(' '));
+    if (args[0] === 'simctl')
+      return JSON.stringify({
+        devices: { 'iOS-26': [{ udid: 'SIM-1', name: 'iPhone 17' }] },
+      });
+    if (args.at(-4).endsWith('rnti-sessions')) throw new Error('no such file');
+    mkdirSync(join(args.at(-2), 'incident-x-1'), { recursive: true });
+    return '';
+  };
+  const r = pull(
+    { platform: 'ios', app: 'com.app', device: 'PHONE-1', out },
+    run
+  );
+  assert.equal(
+    calls[1],
+    `xcrun devicectl device copy from --device PHONE-1 --domain-type appDataContainer --domain-identifier com.app --source Library/Application Support/rnti-incidents --destination ${join(out, 'rnti-incidents')} --quiet`
+  );
+  assert.equal(r.incidents.length, 1);
+  assert.equal(r.sessions.length, 0);
+  assert.throws(
+    () =>
+      pull(
+        { platform: 'ios', app: 'com.app', device: 'PHONE-1', out },
+        (cmd, args) => {
+          if (args[0] === 'simctl') return '{"devices":{}}';
+          throw new Error('device locked');
+        }
+      ),
+    /development build.*device locked/
+  );
+});
+
+test('ios --device with a simulator udid reads its container', () => {
+  const container = tmp();
+  mkdirSync(
+    join(container, 'Library/Application Support/rnti-incidents/incident-1'),
+    {
+      recursive: true,
+    }
+  );
+  const r = pull(
+    { platform: 'ios', app: 'com.app', device: 'SIM-1', out: tmp() },
+    (cmd, args) => {
+      if (args[1] === 'list')
+        return JSON.stringify({
+          devices: { 'iOS-26': [{ udid: 'SIM-1', name: 'iPhone 17' }] },
+        });
+      assert.deepEqual(args, [
+        'simctl',
+        'get_app_container',
+        'SIM-1',
+        'com.app',
+        'data',
+      ]);
+      return container;
+    }
+  );
+  assert.equal(r.incidents.length, 1);
+});
+
 test('sessions are listed oldest first by start time, not by name', () => {
   const container = tmp();
   const base = join(container, 'Library/Application Support/rnti-sessions');
