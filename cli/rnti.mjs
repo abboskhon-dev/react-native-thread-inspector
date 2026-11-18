@@ -24,8 +24,8 @@ android/app/build/generated/sourcemaps/react/release/index.android.bundle.map).
 
 record starts or stops Hermes sampling in a running app that called
 start({ remoteSampling: true }); Android over adb, iOS on a booted simulator.
-pull copies saved incidents and sampling sessions from a device (adb) or a
-booted iOS simulator into --out (default: rnti-data).`;
+pull copies saved incidents and sampling sessions from an Android device (adb),
+an iOS simulator, or an iPhone (devicectl) into --out (default: rnti-data).`;
 
 function usage() {
   console.error(USAGE);

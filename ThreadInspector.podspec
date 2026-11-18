@@ -13,11 +13,14 @@ Pod::Spec.new do |s|
   s.platforms    = { :ios => min_ios_version_supported }
   s.source       = { :git => "https://github.com/abboskhon-dev/react-native-thread-inspector.git", :tag => "v#{s.version}" }
 
-  s.source_files = "ios/**/*.{h,m,mm,cpp}", "cpp/core/**/*.{h,cpp}", "cpp/rn/**/*.{h,cpp}"
-  s.private_header_files = "ios/**/*.h", "cpp/core/**/*.h", "cpp/rn/**/*.h"
+  s.source_files = "ios/**/*.{h,m,mm,cpp,swift}", "cpp/core/**/*.{h,cpp}", "cpp/rn/**/*.{h,cpp}"
+  s.public_header_files = "ios/RNThreadInspector.h"
+  s.swift_version = "5.9"
+  s.private_header_files = "ios/ThreadInspector.h", "cpp/core/**/*.h", "cpp/rn/**/*.h"
   s.pod_target_xcconfig = {
     "HEADER_SEARCH_PATHS" => "\"$(PODS_TARGET_SRCROOT)/cpp/core\" \"$(PODS_TARGET_SRCROOT)/cpp/rn\"",
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",
+    "DEFINES_MODULE" => "YES",
   }
 
   s.resource_bundles = { "ThreadInspector_privacy" => ["ios/PrivacyInfo.xcprivacy"] }

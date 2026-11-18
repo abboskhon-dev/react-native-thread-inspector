@@ -90,6 +90,31 @@ TI.onIncidentSaved(({ path }) => {
 | `TI.sampling.start(hz)` / `stop()` | Hermes JS stack samples for a bounded session | Separate overhead; Android ignores `hz` (~100 Hz) |
 | `useObservedCommit(name)` / `<ObservedCommit>` | Commit timestamp of one instrumented subtree | Not all React commits, not render time, not display time |
 
+### Native spans
+
+Native work without a span shows up only as unattributed time. Wrap it in a span from app code; the calls do nothing until `start()` has run.
+
+```kotlin
+import com.threadinspector.RNThreadInspector
+
+val image = RNThreadInspector.measure("image.decode") { decode(bytes) }
+```
+
+```swift
+import ThreadInspector
+
+let image = try RNThreadInspector.measure("image.decode") { try decode(data) }
+```
+
+A span on the stalled thread is reported as `direct_containment`. For work that starts on one thread and finishes on another, pass the same flow id to each span, and the report links them as `explicit_flow`:
+
+```swift
+let flow = RNThreadInspector.newFlow()
+queue.async { RNThreadInspector.measure("upload.encode", flowId: flow) { encode() } }
+```
+
+`begin`/`end` cover work that does not fit in a block, and `nameCurrentThread` names a worker thread in the trace. Objective-C uses the same class: `[RNThreadInspector measure:@"image.decode" block:^{ ... }]`.
+
 ## What an incident contains
 
 `incident.json` (`rnti.incident/1`):
@@ -109,7 +134,7 @@ TI.onIncidentSaved(({ path }) => {
 ```sh
 npx rnti record start android <app-id>   # or: ios <bundle-id> (booted simulator)
 npx rnti record stop android <app-id>
-npx rnti pull android <app-id>           # or: ios <bundle-id> (booted simulator)
+npx rnti pull android <app-id>           # or: ios <bundle-id> [--device <udid>]
 npx rnti top <session-dir>
 npx rnti diff <session-a> <session-b>
 npx rnti merge <incident-dir> <session-dir>
@@ -121,7 +146,8 @@ npx rnti merge <incident-dir> <session-dir>
   you ship. Both print the app's reply, with the session path after `stop`; an app that did not opt in
   fails after 5 s. Sampling runs at 100 Hz on iOS; Android's profiler has no rate setting.
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
-  only reads from the device. Physical iOS devices are not supported yet.
+  only reads from the device. On iOS it reads the booted simulator, or the simulator or
+  iPhone whose UDID is given with `--device`; an iPhone needs a development build.
 - `top` summarizes one sampling session: CPU time per thread, how often the JS thread had a stack,
   hot path, and top frames by self time. Samples from before the session started are dropped and
   counted.
