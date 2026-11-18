@@ -136,5 +136,28 @@ test('per-thread CPU is listed when the session recorded it', () => {
   const text = formatSummary(s);
   assert.match(text, /process 1500 ms \(75\.0% of one core\), 3 threads/);
   assert.match(text, /400\.0 {2}20\.0% {2}mqt_v_js \(tid 7, JS thread\)/);
+  assert.doesNotMatch(text, /vol\/s/);
   assert.equal(summarizeSession(session({ parse: 10 })).cpu, null);
+});
+
+test('context switches per second are listed when the session recorded them', () => {
+  const cpu = {
+    wall_ns: 2000 * MS,
+    process_ns: 600 * MS,
+    threads: [
+      { tid: 7, name: 'mqt_v_js', cpu_ns: 400 * MS, voluntary_switches: 10, involuntary_switches: 40 },
+      { tid: 12, name: 'pool-1', cpu_ns: 200 * MS, voluntary_switches: 1800, involuntary_switches: 6 },
+    ],
+  };
+  const s = summarizeSession(session({ parse: 10 }, { cpu }));
+  assert.deepEqual(
+    s.cpu.threads.map((t) => [t.name, t.voluntary_per_s, t.involuntary_per_s]),
+    [
+      ['mqt_v_js', 5, 20],
+      ['pool-1', 900, 3],
+    ]
+  );
+  const text = formatSummary(s);
+  assert.match(text, /cpu ms {3}core {2}vol\/s {2}invol\/s {2}thread/);
+  assert.match(text, /200\.0 {2}10\.0% {4}900 {8}3 {2}pool-1/);
 });
