@@ -8,7 +8,7 @@ Nothing leaves the device. Labels are static names (spans, module/method names, 
 user values or route params.
 
 > Status: research prototype. Validated on a Galaxy S21 (Android 15) and iOS 26/27 simulators with
-> React Native 0.88 (New Architecture, Hermes). Not yet published or production-proven.
+> React Native 0.88 (New Architecture, Hermes). Not yet production-proven.
 
 ## What a report looks like
 
@@ -45,14 +45,19 @@ and [RESEARCH.md](./RESEARCH.md) explains what the tool can and cannot prove.
 
 ## Install
 
-Not on npm yet. To try it, clone the repo and run the example app:
+```sh
+yarn add react-native-thread-inspector
+cd ios && pod install
+```
+
+Requires React Native 0.88 or newer, the New Architecture and Hermes.
+
+To try it without an app of your own, clone the repo and run the example:
 
 ```sh
 yarn
 yarn example android # or: yarn example ios
 ```
-
-Requires the New Architecture and Hermes.
 
 ## Use
 

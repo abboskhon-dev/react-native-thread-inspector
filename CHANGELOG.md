@@ -5,6 +5,8 @@ User-visible changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-18
+
 First release.
 
 ### Added
