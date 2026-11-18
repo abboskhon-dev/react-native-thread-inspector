@@ -7,6 +7,9 @@ release retitles it `## <version> — <date>`.
 
 ### Added
 
+- **Native spans for iOS app code** (#33)
+  - `RNThreadInspector` (`measure`, `begin`/`end`, `newFlow`, `nameCurrentThread`) from Swift or Objective-C, matching the Android API.
+  - The README documents native spans on both platforms.
 - **`rnti record start|stop` samples a running app from your computer** (#28)
   - Opt in with `start({ remoteSampling: true })`; Android listens to adb shell only, iOS to a Darwin notification on the simulator.
   - `start()` reports it as the `remoteSampling` capability.

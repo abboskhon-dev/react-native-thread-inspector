@@ -1,4 +1,5 @@
 #import "ThreadInspector.h"
+#import "RNThreadInspector.h"
 
 #import <UIKit/UIKit.h>
 #import <ReactCommon/CallInvoker.h>
@@ -202,16 +203,6 @@ void busyWait(double ms) {
   const uint64_t end = nowNs() + static_cast<uint64_t>(ms * kMs);
   while (nowNs() < end) {
   }
-}
-
-template <typename F>
-void measure(Category c, const char *name, uint64_t flow, F &&fn) {
-  Inspector *ins = Inspector::shared();
-  if (!ins) return fn();
-  const uint32_t label = ins->recorder().intern(name);
-  const uint64_t span = ins->recorder().begin(c, label, flow);
-  fn();
-  ins->recorder().end(c, label, span);
 }
 
 } // namespace
@@ -498,14 +489,14 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
 
 - (NSNumber *)simulateNativeBlock:(double)ms
 {
-  measure(Category::Native, "debug.nativeBlock", 0, [ms] { busyWait(ms); });
+  [RNThreadInspector measure:@"debug.nativeBlock" block:^{ busyWait(ms); }];
   return @0;
 }
 
 - (void)simulateMainThreadBlock:(double)ms
 {
   dispatch_async(dispatch_get_main_queue(), ^{
-    measure(Category::Native, "debug.mainThreadBlock", 0, [ms] { busyWait(ms); });
+    [RNThreadInspector measure:@"debug.mainThreadBlock" block:^{ busyWait(ms); }];
   });
 }
 
@@ -516,8 +507,8 @@ void measure(Category c, const char *name, uint64_t flow, F &&fn) {
 {
   const uint64_t flow = static_cast<uint64_t>(flowId);
   dispatch_async(_worker, ^{
-    if (auto *i = Inspector::shared()) i->recorder().nameCurrentThread("rnti.demo-worker");
-    measure(Category::Native, "debug.asyncWork", flow, [ms] { [NSThread sleepForTimeInterval:ms / 1000.0]; });
+    [RNThreadInspector nameCurrentThread:@"rnti.demo-worker"];
+    [RNThreadInspector measure:@"debug.asyncWork" flowId:flow block:^{ [NSThread sleepForTimeInterval:ms / 1000.0]; }];
     resolve(nil);
   });
 }
