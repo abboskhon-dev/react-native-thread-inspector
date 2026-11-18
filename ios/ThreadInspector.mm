@@ -106,16 +106,27 @@ NSString *remoteSamplingName(NSString *cmd) {
   return [NSString stringWithFormat:@"%@.rnti.sampling.%@", NSBundle.mainBundle.bundleIdentifier ?: @"", cmd];
 }
 
+NSString *remoteSamplingFile(NSString *name) {
+  return [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:name];
+}
+
+// Darwin notifications carry no payload, so `rnti record` passes a request id in a file and reads the reply from another.
+void writeRemoteSamplingReply(long long request, NSString *json) {
+  NSString *wrapped = [NSString stringWithFormat:@"{\"request\":%lld,\"reply\":%@}", request, json];
+  [[wrapped dataUsingEncoding:NSUTF8StringEncoding] writeToFile:remoteSamplingFile(@"rnti-record-reply.json") atomically:YES];
+}
+
 // Darwin notifications arrive on the main thread; sampling calls belong on the JS thread like the JS API's.
 void onRemoteSampling(CFNotificationCenterRef, void *, CFNotificationName name, const void *, CFDictionaryRef) {
   const bool start = [(__bridge NSString *)name isEqualToString:remoteSamplingName(@"start")];
-  postToJs([start] {
+  NSString *requestFile = remoteSamplingFile(start ? @"rnti-record-start.request" : @"rnti-record-stop.request");
+  const long long request = [[NSString stringWithContentsOfFile:requestFile encoding:NSUTF8StringEncoding error:nil] longLongValue];
+  const bool queued = postToJs([start, request] {
     ThreadInspector *module = gModule;
     NSString *result = start ? [module startHermesSampling:100] : [module stopHermesSampling];
-    // Darwin notifications carry no reply; `rnti record` reads this file from the simulator's container.
-    NSString *reply = [incidentDir().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"rnti-record-reply.json"];
-    [[result ?: @"{\"status\":\"error\",\"reason\":\"module gone\"}" dataUsingEncoding:NSUTF8StringEncoding] writeToFile:reply atomically:YES];
+    writeRemoteSamplingReply(request, result ?: @"{\"status\":\"error\",\"reason\":\"module gone\"}");
   });
+  if (!queued) writeRemoteSamplingReply(request, @"{\"status\":\"error\",\"reason\":\"no JS thread\"}");
 }
 
 // Any process on the device can post a Darwin notification, so this stays off unless the app opts in.

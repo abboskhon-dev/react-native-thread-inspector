@@ -119,7 +119,7 @@ npx rnti merge <incident-dir> <session-dir>
   or rebuild. The app must opt in with `start({ remoteSampling: true })`. On Android only adb shell
   can send the command; on iOS any process on the device can post it, so leave it off in builds
   you ship. Both print the app's reply, with the session path after `stop`; an app that did not opt in
-  fails after 5 s. Sampling runs at 100 Hz.
+  fails after 5 s. Sampling runs at 100 Hz on iOS; Android's profiler has no rate setting.
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
   only reads from the device. Physical iOS devices are not supported yet.
 - `top` summarizes one sampling session: CPU time per thread, how often the JS thread had a stack,

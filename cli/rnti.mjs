@@ -67,7 +67,7 @@ async function runRecord([cmd, platform, app], { device }) {
   if (!cmd || !platform || !app) usage();
   const r = await record({ cmd, platform, app, device });
   console.log(JSON.stringify(r));
-  if (r.status !== 'available' && r.status !== 'sent') process.exitCode = 1;
+  if (r.status !== 'available') process.exitCode = 1;
 }
 
 function top([sessionDir], options) {

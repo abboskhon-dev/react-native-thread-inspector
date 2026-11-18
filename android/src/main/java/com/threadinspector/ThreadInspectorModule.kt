@@ -114,7 +114,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     }.toString()
   }
 
-  private var remoteReceiver: BroadcastReceiver? = null
+  @Volatile private var remoteReceiver: BroadcastReceiver? = null
 
   // Only senders holding DUMP can reach the receiver: adb shell and the system, never another app.
   private fun setRemoteSampling(enabled: Boolean) {
@@ -134,12 +134,12 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
           pending.resultData = when (cmd) {
             "start" -> startHermesSampling(100.0)
             "stop" -> stopHermesSampling()
-            else -> JSONObject().put("status", "error").put("reason", "unknown cmd: $cmd").toString()
+            else -> status("error", "unknown cmd: $cmd").toString()
           }
           pending.finish()
         }
         if (!queued) {
-          pending.resultData = JSONObject().put("status", "error").put("reason", "no JS thread").toString()
+          pending.resultData = status("error", "no JS thread").toString()
           pending.finish()
         }
       }

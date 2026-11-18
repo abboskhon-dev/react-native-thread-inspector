@@ -1,34 +1,55 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ACTION = 'com.threadinspector.SAMPLING';
 
-function exec(cmd, args) {
+function exec(cmd, args, { timeout } = {}) {
   return execFileSync(cmd, args, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
   });
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function readReply(file) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
 // `am broadcast` prints the receiver's reply as: Broadcast completed: result=0, data="{...}"
-function recordAndroid({ cmd, app, device }, run) {
+function recordAndroid({ cmd, app, device, timeoutMs }, run) {
   const adb = device ? ['-s', device] : [];
-  const out = run('adb', [
-    ...adb,
-    'shell',
-    'am',
-    'broadcast',
-    '-a',
-    ACTION,
-    '-p',
-    app,
-    '--es',
-    'cmd',
-    cmd,
-  ]);
+  let out;
+  try {
+    out = run(
+      'adb',
+      [
+        ...adb,
+        'shell',
+        'am',
+        'broadcast',
+        '-a',
+        ACTION,
+        '-p',
+        app,
+        '--es',
+        'cmd',
+        cmd,
+      ],
+      { timeout: timeoutMs }
+    );
+  } catch (e) {
+    if (e.code !== 'ETIMEDOUT') throw e;
+    throw new Error(
+      `${app} did not answer in ${timeoutMs} ms; is its JS thread busy?`
+    );
+  }
   const m = out.match(/data="(.*)"\s*$/m);
   if (!m)
     throw new Error(
@@ -37,7 +58,7 @@ function recordAndroid({ cmd, app, device }, run) {
   return JSON.parse(m[1]);
 }
 
-// A Darwin notification has no reply, so the app writes one into its container, which the Mac can read.
+// A Darwin notification carries no payload, so the request id and the reply travel as files in the app's container.
 async function recordIosSimulator({ cmd, app, device, timeoutMs }, run) {
   const target = device ?? 'booted';
   const container = run('xcrun', [
@@ -47,8 +68,11 @@ async function recordIosSimulator({ cmd, app, device, timeoutMs }, run) {
     app,
     'data',
   ]).trim();
-  const reply = join(container, 'Library', 'Application Support', 'rnti-record-reply.json');
-  rmSync(reply, { force: true });
+  const dir = join(container, 'Library', 'Application Support');
+  const reply = join(dir, 'rnti-record-reply.json');
+  const request = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `rnti-record-${cmd}.request`), String(request));
   run('xcrun', [
     'simctl',
     'spawn',
@@ -57,8 +81,10 @@ async function recordIosSimulator({ cmd, app, device, timeoutMs }, run) {
     '-p',
     `${app}.rnti.sampling.${cmd}`,
   ]);
-  for (const deadline = Date.now() + timeoutMs; Date.now() < deadline; ) {
-    if (existsSync(reply)) return JSON.parse(readFileSync(reply, 'utf8'));
+  for (const deadline = Date.now() + timeoutMs; Date.now() < deadline;) {
+    // A late reply to an earlier command carries that command's id.
+    const r = readReply(reply);
+    if (r?.request === request) return r.reply;
     await sleep(100);
   }
   throw new Error(
@@ -74,10 +100,10 @@ export async function record(
   if (cmd !== 'start' && cmd !== 'stop')
     throw new Error(`unknown record command: ${cmd} (start or stop)`);
   // The id is spliced into a broadcast filter and a notification name.
-  if (!/^[A-Za-z0-9._-]+$/.test(app ?? ''))
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(app ?? ''))
     throw new Error(`invalid app id: ${app}`);
   if (platform === 'android')
-    return recordAndroid({ cmd, app, device }, run);
+    return recordAndroid({ cmd, app, device, timeoutMs }, run);
   if (platform === 'ios')
     return recordIosSimulator({ cmd, app, device, timeoutMs }, run);
   throw new Error(`unknown platform: ${platform} (android or ios)`);
