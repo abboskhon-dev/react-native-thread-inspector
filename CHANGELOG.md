@@ -10,6 +10,8 @@ release retitles it `## <version> — <date>`.
 - **Native spans for iOS app code** (#33)
   - `RNThreadInspector` (`measure`, `begin`/`end`, `newFlow`, `nameCurrentThread`) from Swift or Objective-C, matching the Android API.
   - The README documents native spans on both platforms.
+- **`rnti pull ios --device <udid>` copies from a physical iPhone** (#32)
+  - Uses `xcrun devicectl`; the app must be a development build. A simulator UDID still reads the simulator's container.
 - **`rnti record start|stop` samples a running app from your computer** (#28)
   - Opt in with `start({ remoteSampling: true })`; Android listens to adb shell only, iOS to a Darwin notification on the simulator.
   - `start()` reports it as the `remoteSampling` capability.
@@ -19,6 +21,8 @@ release retitles it `## <version> — <date>`.
 
 ### Fixed
 
+- **Ending a span begun before `start()` no longer records a fake span** (#36)
+  - It showed up as an `(unknown)` span from the start of the window, and could be blamed for a stall. Affects JS, Android and iOS spans.
 - **Calling `start()` twice no longer leaves a second long task observer running** (#22)
   - With `longTasks: false`, `jsLongTasks` always reads `disabled`, even after a failed start.
 

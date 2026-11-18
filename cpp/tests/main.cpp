@@ -326,6 +326,17 @@ static void testStallBeforeFirstAck() {
   CHECK(contained);
 }
 
+static void testEndOfUnstartedSpanIsDropped() {
+  Recorder rec;
+  const uint32_t label = rec.intern("early");
+  rec.setEnabled(false);
+  const uint64_t span = rec.begin(Category::Native, label);
+  rec.setEnabled(true);
+  rec.end(Category::Native, label, span);
+  CHECK(span == 0);
+  CHECK(rec.snapshot(0, UINT64_MAX).events.empty());
+}
+
 static void testAsyncSpanIsNotContainment() {
   Rig rig(fastConfig());
   const uint32_t pending = rig.rec.intern("request.pending");
@@ -746,6 +757,7 @@ int main() {
     void (*fn)();
   } cases[] = {
       {"ring basic", testRingBasic},
+      {"end of an unstarted span is dropped", testEndOfUnstartedSpanIsDropped},
       {"overlapping triggers on separate tracks", testOverlappingTriggersOnSeparateTracks},
       {"ring wrap", testRingWrap},
       {"ring concurrent snapshots", testRingConcurrentSnapshots},

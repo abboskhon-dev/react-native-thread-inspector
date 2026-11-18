@@ -159,7 +159,8 @@ uint64_t Recorder::begin(Category category, uint32_t label, uint64_t flowId, boo
 }
 
 void Recorder::end(Category category, uint32_t label, uint64_t spanId, uint16_t eventFlags, bool async) noexcept {
-  if (!enabled()) return;
+  // Span id 0 comes from a begin while disabled; its End would resolve as a truncated span.
+  if (!enabled() || spanId == 0) return;
   Event e;
   e.ts = nowNs();
   e.kind = async ? EventKind::AsyncEnd : EventKind::End;
