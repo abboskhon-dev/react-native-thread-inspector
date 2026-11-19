@@ -5,7 +5,7 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
-## 0.2.0 — 2026-11-19
+## 0.2.0 — 2026-11-20
 
 ### Added
 
