@@ -5,6 +5,8 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-19
+
 ### Added
 
 - **Native spans for iOS app code** (#33)
