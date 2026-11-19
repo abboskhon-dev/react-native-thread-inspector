@@ -264,7 +264,9 @@ void busyWait(double ms) {
   const bool wantTurboModules = cfg.turboModules;
   cfg.fabric = [c[@"fabric"] isKindOfClass:NSNumber.class] && [c[@"fabric"] boolValue];
   const bool wantFabric = cfg.fabric;
-  const bool wantRemoteSampling = [c[@"remoteSampling"] isKindOfClass:NSNumber.class] && [c[@"remoteSampling"] boolValue];
+  const bool askedRemoteSampling = [c[@"remoteSampling"] isKindOfClass:NSNumber.class] && [c[@"remoteSampling"] boolValue];
+  // rnti record reaches only simulators, so a device would listen with no use.
+  const bool wantRemoteSampling = askedRemoteSampling && TARGET_OS_SIMULATOR;
 
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -326,8 +328,9 @@ void busyWait(double ms) {
     @"frameTimings" : status(@"partial", @"main run loop busy intervals only"),
     @"hermesSamples" : status(@"disabled"),
     @"systemScheduling" : status(@"unavailable", @"no system trace attached"),
-    @"remoteSampling" : wantRemoteSampling ? status(@"available", @"any process on the device can post the notification")
-                                           : status(@"disabled", @"opt in with remoteSampling: true"),
+    @"remoteSampling" : wantRemoteSampling    ? status(@"available", @"any process on the simulator can post the notification")
+                        : askedRemoteSampling ? status(@"unavailable", @"simulator only")
+                                              : status(@"disabled", @"opt in with remoteSampling: true"),
     @"config" : created ? status(@"available") : status(@"partial", @"recorder already running; first config kept"),
     @"incidentDirectory" : dir,
   };
@@ -347,6 +350,7 @@ void busyWait(double ms) {
 
 - (void)stop
 {
+  setRemoteSampling(false);
   if (auto *i = Inspector::shared()) i->stop();
 }
 
