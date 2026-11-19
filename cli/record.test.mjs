@@ -92,6 +92,22 @@ test('ios fails fast when the app does not answer', async () => {
   );
 });
 
+test('ios refuses a physical device before touching it', async () => {
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push(args.slice(0, 2).join(' '));
+    return JSON.stringify({ devices: { 'iOS-26': [{ udid: 'SIM-1' }] } });
+  };
+  await assert.rejects(
+    record(
+      { cmd: 'start', platform: 'ios', app: 'org.app', device: 'PHONE-1' },
+      run
+    ),
+    /PHONE-1 is not a simulator/
+  );
+  assert.deepEqual(calls, ['simctl list']);
+});
+
 test('rejects an app id that could escape the shell or notification name', async () => {
   await assert.rejects(
     record({ cmd: 'start', platform: 'android', app: 'a;rm -rf' }, () => ''),

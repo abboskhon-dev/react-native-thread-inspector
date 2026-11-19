@@ -142,8 +142,8 @@ npx rnti merge <incident-dir> <session-dir>
 
 - `record start|stop` starts or stops a Hermes sampling session in a running app, with no button
   or rebuild. The app must opt in with `start({ remoteSampling: true })`. On Android only adb shell
-  can send the command; on iOS any process on the device can post it, so leave it off in builds
-  you ship. Both print the app's reply, with the session path after `stop`; an app that did not opt in
+  can send the command. On iOS it works on simulators only, where any process can post it; on a
+  device `start()` reports it `unavailable` and does not listen. `stop()` stops listening. Both print the app's reply, with the session path after `stop`; an app that did not opt in
   fails after 5 s. Sampling runs at 100 Hz on iOS; Android's profiler has no rate setting.
 - `pull` copies saved incidents and sampling sessions into `rnti-data/` (`--out`, `--device`). It
   only reads from the device. On iOS it reads the booted simulator, or the simulator or

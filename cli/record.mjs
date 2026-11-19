@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isSimulator } from './pull.mjs';
 
 const ACTION = 'com.threadinspector.SAMPLING';
 
@@ -104,7 +105,12 @@ export async function record(
     throw new Error(`invalid app id: ${app}`);
   if (platform === 'android')
     return recordAndroid({ cmd, app, device, timeoutMs }, run);
-  if (platform === 'ios')
+  if (platform === 'ios') {
+    if (device && !isSimulator(device, run))
+      throw new Error(
+        `${device} is not a simulator; rnti record reaches iOS simulators only`
+      );
     return recordIosSimulator({ cmd, app, device, timeoutMs }, run);
+  }
   throw new Error(`unknown platform: ${platform} (android or ios)`);
 }
