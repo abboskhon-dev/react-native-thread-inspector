@@ -59,7 +59,7 @@ function pullIosSimulator({ app, device, out }, run) {
 }
 
 // UDID only: devicectl also takes names, and a phone may share a simulator's name.
-function isSimulator(device, run) {
+export function isSimulator(device, run) {
   const { devices } = JSON.parse(
     run('xcrun', ['simctl', 'list', 'devices', '-j'])
   );

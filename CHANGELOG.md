@@ -14,7 +14,9 @@ release retitles it `## <version> — <date>`.
   - Uses `xcrun devicectl`; the app must be a development build. A simulator UDID still reads the simulator's container.
 - **`rnti record start|stop` samples a running app from your computer** (#28)
   - Opt in with `start({ remoteSampling: true })`; Android listens to adb shell only, iOS to a Darwin notification on the simulator.
-  - `start()` reports it as the `remoteSampling` capability.
+  - `start()` reports it as the `remoteSampling` capability, `unavailable` on a physical iPhone, which does not listen (#40).
+  - `stop()` stops listening (#40).
+  - `--device` with an iPhone UDID fails with a clear "simulators only" error (#40).
 - **`rnti top` shows context switches per thread on Android** (#27)
   - Voluntary and involuntary switches per second, next to CPU time; a thread woken often for small jobs stands out.
   - Recorded in `session.json` as `voluntary_switches` and `involuntary_switches`; iOS has no per-thread count and leaves them out.
@@ -30,6 +32,7 @@ release retitles it `## <version> — <date>`.
 
 - Claude Code skills in `.claude/skills/` for the flow, checks, thread model, TurboModules and benchmarks (#34).
 - Jest tests for the JS API against a mocked native module; `yarn test` runs them (#22).
+- Releases are dated, and `release.yml` takes the notes from the version's CHANGELOG section (#25).
 
 ## 0.1.0 — 2026-11-18
 

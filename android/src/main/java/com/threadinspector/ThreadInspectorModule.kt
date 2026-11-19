@@ -156,7 +156,10 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       if (reason != null) put("reason", reason)
     }
 
-  override fun stop() = NativeBridge.nativeStop()
+  override fun stop() {
+    setRemoteSampling(false)
+    NativeBridge.nativeStop()
+  }
 
   override fun nowNs(): Double = NativeBridge.nativeNowNs().toDouble()
 
