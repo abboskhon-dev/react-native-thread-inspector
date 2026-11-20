@@ -53,13 +53,6 @@ bool postToMain(std::function<void()> ack) {
   return true;
 }
 
-void onSaved(uint64_t incidentId, const std::string &path) {
-  NSDictionary *event = @{@"id" : @(incidentId), @"path" : [NSString stringWithUTF8String:path.c_str()]};
-  dispatch_async(dispatch_get_main_queue(), ^{
-    [gModule emitOnIncidentSaved:event];
-  });
-}
-
 // Main run loop busy intervals: afterWaiting -> beforeWaiting, an envelope around whatever the loop serviced.
 void installRunLoopObserver() {
   static dispatch_once_t once;
@@ -181,10 +174,6 @@ NSDictionary *status(NSString *s, NSString *reason = nil) {
   return reason ? @{@"status" : s, @"reason" : reason} : @{@"status" : s};
 }
 
-NSDictionary *gSamplingStart;
-// Only touched by sampling start and stop, which run on the JS thread.
-rnti::CpuSnapshot gSamplingCpu;
-
 // Pairs the monotonic recorder clock with wall time so wall-clock profiles can be mapped later.
 NSDictionary *clockAnchor() {
   const uint64_t before = rnti::nowNs();
@@ -197,6 +186,148 @@ NSDictionary *clockAnchor() {
 NSString *jsonString(NSDictionary *d) {
   NSData *data = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
   return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+NSDictionary *gSamplingStart;
+// Only touched by sampling start and stop, which run on the JS thread.
+rnti::CpuSnapshot gSamplingCpu;
+// Readable off the JS thread, unlike gSamplingStart.
+std::atomic<bool> gSessionActive{false};
+
+constexpr int64_t kStackWindowNs = 30 * NSEC_PER_SEC;
+constexpr NSUInteger kKeptWindows = 2;
+std::atomic<bool> gJsStacks{false};
+std::atomic<bool> gForeground{true};
+std::mutex gWindowMu;
+// Guarded by gWindowMu: set while the sampler runs for `jsStacks`.
+NSDictionary *gWindowStart;
+dispatch_source_t gWindowTimer;
+
+// Caches: windows are working data, copied into an incident only when one is saved.
+NSString *windowsDir() {
+  NSURL *base = [NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject;
+  return [base.path stringByAppendingPathComponent:@"rnti-stacks"];
+}
+
+#if RNTI_HAS_HERMES
+facebook::hermes::IHermesRootAPI *hermesRoot() {
+  return facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
+}
+
+// Runs on the JS thread; the folder gets its prefix only once it is complete.
+NSString *dumpSession(facebook::hermes::IHermesRootAPI *root, NSString *parent, NSString *prefix, NSDictionary *start, id cpu) {
+  NSFileManager *fm = NSFileManager.defaultManager;
+  NSString *name = [NSString stringWithFormat:@"%lld", (long long)(rnti::nowNs() / 1000000)];
+  NSString *tmp = [parent stringByAppendingPathComponent:[@".tmp-" stringByAppendingString:name]];
+  [fm createDirectoryAtPath:tmp withIntermediateDirectories:YES attributes:nil error:nil];
+  root->dumpSampledTraceToFile([tmp stringByAppendingPathComponent:kProfileFile].UTF8String);
+  root->disableSamplingProfiler();
+  NSDictionary *session = @{@"start" : start, @"stop" : clockAnchor(), @"profile" : kProfileFile,
+                            @"profile_clock" : @"as emitted by Hermes; map with the anchors",
+                            @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()), @"js_tid" : @(rnti::currentTid()),
+                            @"cpu" : cpu ?: (id)NSNull.null, @"clock_domain" : @(rnti::clockDomainName())};
+  [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[tmp stringByAppendingPathComponent:@"session.json"] atomically:YES];
+  NSString *dir = [parent stringByAppendingPathComponent:[prefix stringByAppendingString:name]];
+  return [fm moveItemAtPath:tmp toPath:dir error:nil] ? dir : nil;
+}
+#endif
+
+// Any thread: a stall that holds the JS thread on resume is still sampled.
+void openWindow() {
+#if RNTI_HAS_HERMES
+  std::lock_guard<std::mutex> lk(gWindowMu);
+  if (!gJsStacks || !gForeground || gSessionActive || gWindowStart) return;
+  auto *root = hermesRoot();
+  if (!root) return;
+  NSDictionary *anchor = clockAnchor();
+  root->enableSamplingProfiler(100);
+  gWindowStart = anchor;
+#endif
+}
+
+// JS thread. Dumping empties the sampler, so its memory stays flat.
+void closeWindow() {
+#if RNTI_HAS_HERMES
+  std::lock_guard<std::mutex> lk(gWindowMu);
+  NSDictionary *start = gWindowStart;
+  auto *root = hermesRoot();
+  if (!start || !root) return;
+  gWindowStart = nil;
+  dumpSession(root, windowsDir(), @"window-", start, nil);
+  NSArray<NSString *> *windows = entries(windowsDir(), @"window-");
+  if (windows.count > kKeptWindows) removeAll([windows subarrayWithRange:NSMakeRange(kKeptWindows, windows.count - kKeptWindows)]);
+#endif
+}
+
+// Reopens only if still wanted, so a close that raced a start or a resume heals itself.
+void rotateWindow() {
+  closeWindow();
+  openWindow();
+}
+
+void setJsStacks(bool enabled) {
+  gJsStacks = enabled;
+  {
+    std::lock_guard<std::mutex> lk(gWindowMu);
+    if (gWindowTimer) dispatch_source_cancel(gWindowTimer);
+    gWindowTimer = nil;
+    if (enabled) {
+      gWindowTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+      dispatch_source_set_timer(gWindowTimer, dispatch_time(DISPATCH_TIME_NOW, kStackWindowNs), kStackWindowNs, NSEC_PER_SEC);
+      dispatch_source_set_event_handler(gWindowTimer, ^{
+        postToJs([] { rotateWindow(); });
+      });
+      dispatch_resume(gWindowTimer);
+    }
+  }
+  if (enabled) openWindow();
+  else postToJs([] { rotateWindow(); });
+}
+
+uint64_t monoNs(NSDictionary *d, NSString *outer, NSString *key) {
+  id v = [d[outer] isKindOfClass:NSDictionary.class] ? d[outer][key] : nil;
+  return [v isKindOfClass:NSNumber.class] ? [v unsignedLongLongValue] : 0;
+}
+
+NSDictionary *readJson(NSString *path) {
+  NSData *data = [NSData dataWithContentsOfFile:path];
+  id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+  return [json isKindOfClass:NSDictionary.class] ? json : nil;
+}
+
+// Copies the windows that overlap the incident into <incident>/js-stacks/, for `rnti merge`.
+void attachStacks(NSString *incident) {
+  NSDictionary *report = readJson([incident stringByAppendingPathComponent:@"incident.json"]);
+  const uint64_t from = monoNs(report, @"window", @"start_ns");
+  const uint64_t to = monoNs(report, @"window", @"capture_end_ns");
+  if (!to) return;
+  NSFileManager *fm = NSFileManager.defaultManager;
+  NSString *stacks = [incident stringByAppendingPathComponent:@"js-stacks"];
+  for (NSString *dir in entries(windowsDir(), @"window-")) {
+    NSDictionary *session = readJson([dir stringByAppendingPathComponent:@"session.json"]);
+    if (monoNs(session, @"start", @"mono_ns") >= to || monoNs(session, @"stop", @"mono_ns") <= from) continue;
+    [fm createDirectoryAtPath:stacks withIntermediateDirectories:YES attributes:nil error:nil];
+    [fm copyItemAtPath:dir toPath:[stacks stringByAppendingPathComponent:dir.lastPathComponent] error:nil];
+  }
+}
+
+void onSaved(uint64_t incidentId, const std::string &path) {
+  NSString *incident = [NSString stringWithUTF8String:path.c_str()];
+  NSDictionary *event = @{@"id" : @(incidentId), @"path" : incident};
+  dispatch_block_t emit = ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [gModule emitOnIncidentSaved:event];
+    });
+  };
+  // The stall's samples are still in the sampler; dump them before listeners read the incident.
+  const bool queued = gJsStacks && postToJs([incident, emit] {
+    rotateWindow();
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      attachStacks(incident);
+      emit();
+    });
+  });
+  if (!queued) emit();
 }
 
 void busyWait(double ms) {
@@ -267,6 +398,7 @@ void busyWait(double ms) {
   const bool askedRemoteSampling = [c[@"remoteSampling"] isKindOfClass:NSNumber.class] && [c[@"remoteSampling"] boolValue];
   // rnti record reaches only simulators, so a device would listen with no use.
   const bool wantRemoteSampling = askedRemoteSampling && TARGET_OS_SIMULATOR;
+  const bool wantJsStacks = [c[@"jsStacks"] isKindOfClass:NSNumber.class] && [c[@"jsStacks"] boolValue];
 
   NSString *dir = incidentDir();
   [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -300,6 +432,7 @@ void busyWait(double ms) {
   ins.start(true);
   installRunLoopObserver();
   setRemoteSampling(wantRemoteSampling);
+  setJsStacks(wantJsStacks);
 
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc removeObserver:self];
@@ -307,6 +440,7 @@ void busyWait(double ms) {
   [nc addObserver:self selector:@selector(didEnterBackground) name:UIApplicationDidEnterBackgroundNotification object:nil];
   dispatch_async(dispatch_get_main_queue(), ^{
     if (UIApplication.sharedApplication.applicationState == UIApplicationStateBackground) {
+      gForeground = false;
       if (auto *i = Inspector::shared()) i->setForeground(false);
     }
   });
@@ -326,7 +460,12 @@ void busyWait(double ms) {
     @"turboModuleIntervals" : tmStatus,
     @"reactRenderTimings" : status(@"unavailable", @"production renderer"),
     @"frameTimings" : status(@"partial", @"main run loop busy intervals only"),
-    @"hermesSamples" : status(@"disabled"),
+#if RNTI_HAS_HERMES
+    @"hermesSamples" : wantJsStacks ? status(@"available", @"sampled at 100 Hz in the foreground; paused during a sampling session")
+                                    : status(@"disabled", @"opt in with jsStacks: true"),
+#else
+    @"hermesSamples" : status(@"unavailable", @"Hermes headers not found"),
+#endif
     @"systemScheduling" : status(@"unavailable", @"no system trace attached"),
     @"remoteSampling" : wantRemoteSampling    ? status(@"available", @"any process on the simulator can post the notification")
                         : askedRemoteSampling ? status(@"unavailable", @"simulator only")
@@ -341,16 +480,24 @@ void busyWait(double ms) {
 - (void)didBecomeActive
 {
   if (auto *i = Inspector::shared()) i->setForeground(true);
+  gForeground = true;
+  // Off the main thread: the JS thread holds the window lock while it dumps.
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    openWindow();
+  });
 }
 
 - (void)didEnterBackground
 {
   if (auto *i = Inspector::shared()) i->setForeground(false);
+  gForeground = false;
+  postToJs([] { rotateWindow(); });
 }
 
 - (void)stop
 {
   setRemoteSampling(false);
+  setJsStacks(false);
   if (auto *i = Inspector::shared()) i->stop();
 }
 
@@ -416,10 +563,13 @@ void busyWait(double ms) {
 
 - (NSString *)startHermesSampling:(double)hz
 {
-  NSDictionary *anchor = clockAnchor();
 #if RNTI_HAS_HERMES
-  auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
+  auto *root = hermesRoot();
   if (!root) return jsonString(@{@"status" : @"unavailable", @"reason" : @"IHermesRootAPI not available"});
+  // Set before closing the window, so none reopens under the session.
+  gSessionActive = true;
+  closeWindow();
+  NSDictionary *anchor = clockAnchor();
   root->enableSamplingProfiler(hz > 0 ? hz : 100);
   gSamplingStart = anchor;
   gSamplingCpu = rnti::cpuSnapshot();
@@ -434,28 +584,21 @@ void busyWait(double ms) {
 {
 #if RNTI_HAS_HERMES
   if (!gSamplingStart) return jsonString(@{@"status" : @"error", @"reason" : @"not sampling"});
-  auto *root = facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI());
+  auto *root = hermesRoot();
   if (!root) return jsonString(@{@"status" : @"unavailable"});
   // Read before the dump, so writing the profile is not counted as the app's work.
   const std::string cpuJson = rnti::cpuDeltaJson(gSamplingCpu, rnti::cpuSnapshot());
   id cpu = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:cpuJson.data() length:cpuJson.size()] options:0 error:nil];
   if (auto *i = Inspector::shared()) i->recorder().instant(Category::Inspector, i->recorder().intern("hermes.sampling.stop"));
-  NSString *dir = [sessionsDir()
-      stringByAppendingPathComponent:[NSString stringWithFormat:@"session-%lld", (long long)(rnti::nowNs() / 1000000)]];
-  [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-  NSString *profile = [dir stringByAppendingPathComponent:kProfileFile];
-  root->dumpSampledTraceToFile(profile.UTF8String);
-  root->disableSamplingProfiler();
-  NSDictionary *session = @{@"start" : gSamplingStart, @"stop" : clockAnchor(), @"profile" : kProfileFile,
-                            @"profile_clock" : @"as emitted by Hermes; map with the anchors",
-                            @"recorder_session_id" : gSessionId ?: (id)NSNull.null, @"pid" : @(getpid()), @"js_tid" : @(rnti::currentTid()),
-                            @"cpu" : cpu ?: (id)NSNull.null, @"clock_domain" : @(rnti::clockDomainName())};
-  [[jsonString(session) dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[dir stringByAppendingPathComponent:@"session.json"] atomically:YES];
+  NSString *dir = dumpSession(root, sessionsDir(), @"session-", gSamplingStart, cpu);
   NSArray<NSString *> *sessions = entries(sessionsDir(), @"session-");
   NSUInteger removed = 0;
   if (sessions.count > gMaxSessions)
     removed = removeAll([sessions subarrayWithRange:NSMakeRange(gMaxSessions, sessions.count - gMaxSessions)]);
   gSamplingStart = nil;
+  gSessionActive = false;
+  openWindow();
+  if (!dir) return jsonString(@{@"status" : @"error", @"reason" : @"cannot write the session"});
   return jsonString(@{@"status" : @"available", @"path" : dir, @"removedSessions" : @(removed)});
 #else
   return jsonString(@{@"status" : @"unavailable"});
@@ -478,6 +621,7 @@ void busyWait(double ms) {
 
 - (NSNumber *)clearData
 {
+  removeAll(entries(windowsDir(), @"window-"));
   return @(removeAll(entries(incidentDir(), @"incident-")) + removeAll(entries(sessionsDir(), @"session-")));
 }
 
@@ -520,6 +664,7 @@ void busyWait(double ms) {
 - (void)invalidate
 {
   setRemoteSampling(false);
+  setJsStacks(false);
   [NSNotificationCenter.defaultCenter removeObserver:self];
   std::lock_guard<std::mutex> lk(gInvokerMu);
   gJsInvoker.reset();

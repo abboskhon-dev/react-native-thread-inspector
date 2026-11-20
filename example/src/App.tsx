@@ -30,6 +30,7 @@ const startDemo = () => {
     turboModules: true,
     fabric: true,
     remoteSampling: true,
+    jsStacks: true,
   });
 };
 

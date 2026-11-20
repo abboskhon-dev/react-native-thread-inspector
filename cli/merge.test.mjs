@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -163,4 +163,35 @@ test('merge adds a sample track and per-trigger summary', () => {
     )
   );
   assert.ok(!JSON.stringify(trace).includes('/Users/'));
+});
+
+test('merge without a session uses the windows saved in the incident', () => {
+  const { inc, ses } = fixture();
+  assert.throws(() => mergeIncident(inc), /no js-stacks/);
+  const session = JSON.parse(readFileSync(join(ses, 'session.json'), 'utf8'));
+  const { samples, ...rest } = profile();
+  const windows = [
+    [950, 1050, samples.slice(0, 50)],
+    [1050, 1150, samples.slice(50)],
+  ];
+  for (const [start, stop, part] of windows) {
+    const dir = join(inc, 'js-stacks', `window-${start}`);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'hermes.trace.json'),
+      JSON.stringify({ ...rest, samples: part })
+    );
+    writeFileSync(
+      join(dir, 'session.json'),
+      JSON.stringify({
+        ...session,
+        start: { mono_ns: start * MS },
+        stop: { mono_ns: stop * MS },
+      })
+    );
+  }
+  const r = mergeIncident(inc);
+  assert.equal(r.provenance.verified, true);
+  assert.equal(r.triggers[0].samples, 60);
+  assert.deepEqual(r.coverage.clipped_to_ns, [950 * MS, 1150 * MS]);
 });

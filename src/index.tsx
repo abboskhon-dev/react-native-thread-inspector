@@ -24,6 +24,8 @@ export type StartOptions = {
   fabric?: boolean;
   // Lets `rnti record` start and stop sampling: adb shell on Android, a Darwin notification on iOS simulators only.
   remoteSampling?: boolean;
+  // Keeps Hermes sampling on in the foreground and saves the samples around each incident with it; costs CPU.
+  jsStacks?: boolean;
 };
 
 export type CapabilityStatus =

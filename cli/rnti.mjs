@@ -16,7 +16,7 @@ const USAGE = `usage:
   rnti pull <android|ios> <app-id> [--device <id>] [--out <dir>]
   rnti top <session-dir> [--top <n>] [--json] [--sourcemap <file>]
   rnti diff <session-a> <session-b> [--top <n>] [--json] [--sourcemap <file>]
-  rnti merge <incident-dir> <session-dir> [--sourcemap <file>]
+  rnti merge <incident-dir> [<session-dir>] [--sourcemap <file>]
 
 --sourcemap takes the composed Hermes map of the same build (Android:
 android/app/build/generated/sourcemaps/react/release/index.android.bundle.map).
@@ -33,7 +33,7 @@ function usage() {
 }
 
 function merge([incidentDir, sessionDir], options) {
-  if (!incidentDir || !sessionDir) usage();
+  if (!incidentDir) usage();
   const result = mergeIncident(incidentDir, sessionDir, options);
   if (!result.provenance.verified)
     console.warn(
