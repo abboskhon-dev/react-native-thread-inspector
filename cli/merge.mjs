@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { checkSourceMap, createSymbolicator } from './sourcemap.mjs';
 
@@ -201,20 +201,37 @@ export function checkProvenance(report, pid, session) {
   return { verified: problems.length === 0, problems };
 }
 
+// With `jsStacks`, the app saves the sampling windows that overlap the incident inside it.
+export function attachedSessions(incidentDir) {
+  const dir = join(incidentDir, 'js-stacks');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .sort()
+    .map((n) => join(dir, n));
+}
+
 export function mergeIncident(
   incidentDir,
   sessionDir,
   { allowUnverified = false, sourceMap } = {}
 ) {
+  const sessionDirs = sessionDir ? [sessionDir] : attachedSessions(incidentDir);
+  if (!sessionDirs.length)
+    throw new Error(
+      `${incidentDir} has no js-stacks; pass a session directory, or record with start({ jsStacks: true })`
+    );
   const trace = JSON.parse(
     readFileSync(join(incidentDir, 'trace.json'), 'utf8')
   );
   const report = JSON.parse(
     readFileSync(join(incidentDir, 'incident.json'), 'utf8')
   );
-  const { profile, session } = readSession(sessionDir);
+  const sessions = sessionDirs.map(readSession);
   const pid = trace.traceEvents.find((e) => e.pid != null)?.pid ?? 0;
-  const provenance = checkProvenance(report, pid, session);
+  const problems = sessions.flatMap(
+    ({ session }) => checkProvenance(report, pid, session).problems
+  );
+  const provenance = { verified: !problems.length, problems };
   if (!provenance.verified && !allowUnverified) {
     throw new Error(
       `profile does not match incident (${provenance.problems.join('; ')}); pass --allow-unverified to merge anyway`
@@ -222,17 +239,21 @@ export function mergeIncident(
   }
 
   const symbolicate = sourceMap ? createSymbolicator(sourceMap) : null;
-  const samples = loadSamples(profile, symbolicate);
+  const samples = sessions
+    .flatMap(({ profile }) => loadSamples(profile, symbolicate))
+    .sort((a, b) => a.tsNs - b.tsNs);
   const sourceMapCheck = symbolicate
     ? checkSourceMap(symbolicate, { allowUnverified })
     : null;
   const winStart = Math.max(
     report.window.start_ns,
-    session?.start?.mono_ns ?? 0
+    Math.min(...sessions.map(({ session }) => session?.start?.mono_ns ?? 0))
   );
   const winEnd = Math.min(
     report.window.capture_end_ns,
-    session?.stop?.mono_ns ?? Infinity
+    Math.max(
+      ...sessions.map(({ session }) => session?.stop?.mono_ns ?? Infinity)
+    )
   );
   const tids = new Set();
   for (const raw of sampleSlices(samples)) {

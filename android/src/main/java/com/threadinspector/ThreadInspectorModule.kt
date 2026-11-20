@@ -28,6 +28,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   external override fun getBindingsInstaller(): BindingsInstallerHolder
 
   private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "rnti.demo-worker") }
+  private val stacksWorker = Executors.newSingleThreadExecutor { r -> Thread(r, "rnti.stacks") }
 
   private fun incidentDir(): File =
     File(reactApplicationContext.getExternalFilesDir(null) ?: reactApplicationContext.filesDir, "rnti-incidents")
@@ -65,11 +66,22 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     val context = reactApplicationContext
     NativeBridge.jsPoster = { r -> context.runOnJSQueueThread(r) }
     NativeBridge.savedListener = { id, path ->
-      val event = Arguments.createMap().apply {
-        putDouble("id", id.toDouble())
-        putString("path", path)
+      val emit = Runnable {
+        val event = Arguments.createMap().apply {
+          putDouble("id", id.toDouble())
+          putString("path", path)
+        }
+        emitOnIncidentSaved(event)
       }
-      emitOnIncidentSaved(event)
+      // The stall's samples are still in the sampler; dump them before listeners read the incident.
+      val attach = Runnable {
+        rotateWindow()
+        stacksWorker.execute {
+          runCatching { attachStacks(File(path)) }
+          emit.run()
+        }
+      }
+      if (!jsStacks || !context.runOnJSQueueThread(attach)) emit.run()
     }
     val dir = incidentDir().apply { mkdirs() }
     val sessionId = UUID.randomUUID().toString().substring(0, 8)
@@ -81,6 +93,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     context.removeLifecycleEventListener(this)
     context.addLifecycleEventListener(this)
     setRemoteSampling(c.optBoolean("remoteSampling", false))
+    setJsStacks(c.optBoolean("jsStacks", false))
 
     return JSONObject().apply {
       put("jsWatchdog", status("available"))
@@ -102,7 +115,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       )
       put("reactRenderTimings", status("unavailable", "production renderer"))
       put("frameTimings", status("unavailable", "not implemented in this build"))
-      put("hermesSamples", status("disabled"))
+      put(
+        "hermesSamples",
+        if (c.optBoolean("jsStacks", false)) status("available", "sampled at about 100 Hz in the foreground; paused during a sampling session")
+        else status("disabled", "opt in with jsStacks: true"),
+      )
       put("systemScheduling", status("unavailable", "no system trace attached"))
       put(
         "remoteSampling",
@@ -158,6 +175,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   override fun stop() {
     setRemoteSampling(false)
+    setJsStacks(false)
     NativeBridge.nativeStop()
   }
 
@@ -195,7 +213,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     return 0.0
   }
 
-  private var samplingStart: JSONObject? = null
+  @Volatile private var samplingStart: JSONObject? = null
 
   // Pairs the monotonic recorder clock with wall time so wall-clock profiles can be mapped later.
   private fun clockAnchor(): JSONObject {
@@ -211,6 +229,9 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   }
 
   override fun startHermesSampling(hz: Double): String {
+    // Set before closing the window, so none reopens under the session.
+    samplingStart = clockAnchor()
+    closeWindow()
     return try {
       val anchor = clockAnchor()
       HermesSamplingProfiler.enable()
@@ -219,6 +240,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.start"), 0)
       JSONObject().put("status", "available").put("anchor", anchor).put("note", "Android API has no frequency parameter").toString()
     } catch (e: Throwable) {
+      samplingStart = null
+      openWindow()
       JSONObject().put("status", "unavailable").put("reason", e.toString()).toString()
     }
   }
@@ -229,27 +252,101 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
       // Read before the dump, so writing the profile is not counted as the app's work.
       val cpu = runCatching { JSONObject(String(NativeBridge.nativeCpuSinceMark(), Charsets.UTF_8)) }.getOrNull()
       NativeBridge.nativeInstant(NativeBridge.CATEGORY_INSPECTOR, NativeBridge.nativeIntern("hermes.sampling.stop"), 0)
-      val dir = File(sessionsDir(), "session-${NativeBridge.nativeNowNs() / 1_000_000}").apply { mkdirs() }
-      HermesSamplingProfiler.dumpSampledTraceToFile(File(dir, PROFILE_FILE).absolutePath)
-      HermesSamplingProfiler.disable()
-      val session = JSONObject().apply {
-        put("start", start)
-        put("stop", clockAnchor())
-        put("profile", PROFILE_FILE)
-        put("profile_clock", "as emitted by Hermes; map with the anchors")
-        put("recorder_session_id", recorderSessionId ?: JSONObject.NULL)
-        put("pid", android.os.Process.myPid())
-        // Synchronous module calls run on the JS thread.
-        put("js_tid", android.os.Process.myTid())
-        put("cpu", cpu ?: JSONObject.NULL)
-        put("clock_domain", "CLOCK_MONOTONIC")
-      }
-      File(dir, "session.json").writeText(session.toString())
+      val dir = dumpSession(sessionsDir(), "session-", start, cpu)
       val removed = entries(sessionsDir(), "session-").drop(maxSessions).count { it.deleteRecursively() }
       samplingStart = null
+      openWindow()
       JSONObject().put("status", "available").put("path", dir.absolutePath).put("removedSessions", removed).toString()
     } catch (e: Throwable) {
       JSONObject().put("status", "error").put("reason", e.toString()).toString()
+    }
+  }
+
+  // Runs on the JS thread; the folder gets its prefix only once it is complete.
+  private fun dumpSession(parent: File, prefix: String, start: JSONObject, cpu: JSONObject?): File {
+    val name = "${NativeBridge.nativeNowNs() / 1_000_000}"
+    val tmp = File(parent, ".tmp-$name").apply { mkdirs() }
+    HermesSamplingProfiler.dumpSampledTraceToFile(File(tmp, PROFILE_FILE).absolutePath)
+    HermesSamplingProfiler.disable()
+    val session = JSONObject().apply {
+      put("start", start)
+      put("stop", clockAnchor())
+      put("profile", PROFILE_FILE)
+      put("profile_clock", "as emitted by Hermes; map with the anchors")
+      put("recorder_session_id", recorderSessionId ?: JSONObject.NULL)
+      put("pid", android.os.Process.myPid())
+      put("js_tid", android.os.Process.myTid())
+      put("cpu", cpu ?: JSONObject.NULL)
+      put("clock_domain", "CLOCK_MONOTONIC")
+    }
+    File(tmp, "session.json").writeText(session.toString())
+    return File(parent, prefix + name).also { check(tmp.renameTo(it)) { "cannot finish ${it.name}" } }
+  }
+
+  @Volatile private var jsStacks = false
+  @Volatile private var foreground = true
+  private val windowLock = Any()
+  // Guarded by windowLock: set while the sampler runs for `jsStacks`.
+  private var windowStart: JSONObject? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
+  private val backgroundClose = Runnable { reactApplicationContext.runOnJSQueueThread { rotateWindow() } }
+  private val windowTick = object : Runnable {
+    override fun run() {
+      reactApplicationContext.runOnJSQueueThread { rotateWindow() }
+      mainHandler.postDelayed(this, STACK_WINDOW_MS)
+    }
+  }
+
+  // Internal cache: windows are working data, copied into an incident only when one is saved.
+  private fun windowsDir(): File = File(reactApplicationContext.cacheDir, "rnti-stacks")
+
+  private fun setJsStacks(enabled: Boolean) {
+    jsStacks = enabled
+    mainHandler.removeCallbacks(windowTick)
+    if (enabled) mainHandler.postDelayed(windowTick, STACK_WINDOW_MS)
+    if (enabled) openWindow() else reactApplicationContext.runOnJSQueueThread { rotateWindow() }
+  }
+
+  // Any thread: a stall that holds the JS thread on resume is still sampled.
+  private fun openWindow() {
+    synchronized(windowLock) {
+      if (!jsStacks || !foreground || samplingStart != null || windowStart != null) return
+      runCatching {
+        val anchor = clockAnchor()
+        HermesSamplingProfiler.enable()
+        windowStart = anchor
+      }
+    }
+  }
+
+  // JS thread. Dumping empties the sampler, so its memory stays flat.
+  private fun closeWindow() {
+    synchronized(windowLock) {
+      val start = windowStart ?: return
+      windowStart = null
+      runCatching {
+        dumpSession(windowsDir(), "window-", start, null)
+        entries(windowsDir(), "window-").drop(KEPT_WINDOWS).forEach { it.deleteRecursively() }
+      }
+    }
+  }
+
+  // Reopens only if still wanted, so a close that raced a start or a resume heals itself.
+  private fun rotateWindow() {
+    closeWindow()
+    openWindow()
+  }
+
+  // Copies the windows that overlap the incident into <incident>/js-stacks/, for `rnti merge`.
+  private fun attachStacks(incident: File) {
+    val window = JSONObject(File(incident, "incident.json").readText()).getJSONObject("window")
+    val from = window.getLong("start_ns")
+    val to = window.getLong("capture_end_ns")
+    for (dir in entries(windowsDir(), "window-")) {
+      val session = JSONObject(File(dir, "session.json").readText())
+      val overlaps = session.getJSONObject("start").getLong("mono_ns") < to &&
+        session.getJSONObject("stop").getLong("mono_ns") > from
+      if (overlaps) dir.copyRecursively(File(incident, "$STACKS_DIR/${dir.name}"), overwrite = true)
     }
   }
 
@@ -272,9 +369,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     return inside && target.deleteRecursively()
   }
 
-  override fun clearData(): Double =
-    (entries(incidentDir(), "incident-") + entries(sessionsDir(), "session-"))
+  override fun clearData(): Double {
+    entries(windowsDir(), "window-").forEach { it.deleteRecursively() }
+    return (entries(incidentDir(), "incident-") + entries(sessionsDir(), "session-"))
       .count { it.deleteRecursively() }.toDouble()
+  }
 
   override fun readIncidentFile(path: String, file: String): String {
     val root = incidentDir().canonicalFile
@@ -308,14 +407,26 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     while (SystemClock.elapsedRealtime() < end) Unit
   }
 
-  override fun onHostResume() = NativeBridge.nativeSetForeground(true)
+  override fun onHostResume() {
+    NativeBridge.nativeSetForeground(true)
+    foreground = true
+    mainHandler.removeCallbacks(backgroundClose)
+    stacksWorker.execute { openWindow() }
+  }
 
-  override fun onHostPause() = NativeBridge.nativeSetForeground(false)
+  override fun onHostPause() {
+    NativeBridge.nativeSetForeground(false)
+    foreground = false
+    // A dialog or a deep link pauses the app for a moment; only a real background stops sampling.
+    mainHandler.postDelayed(backgroundClose, BACKGROUND_GRACE_MS)
+  }
 
   override fun onHostDestroy() = Unit
 
   override fun invalidate() {
     setRemoteSampling(false)
+    setJsStacks(false)
+    mainHandler.removeCallbacks(backgroundClose)
     reactApplicationContext.removeLifecycleEventListener(this)
     NativeBridge.jsPoster = null
     NativeBridge.savedListener = null
@@ -326,6 +437,10 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     const val NAME = NativeThreadInspectorSpec.NAME
     private const val REMOTE_SAMPLING_ACTION = "com.threadinspector.SAMPLING"
     private const val DEFAULT_MAX_SESSIONS = 5
+    private const val STACK_WINDOW_MS = 30_000L
+    private const val KEPT_WINDOWS = 2
+    private const val BACKGROUND_GRACE_MS = 5_000L
+    private const val STACKS_DIR = "js-stacks"
     // Chrome trace format, as Hermes dumps it.
     private const val PROFILE_FILE = "hermes.trace.json"
     @Volatile private var maxSessions = DEFAULT_MAX_SESSIONS

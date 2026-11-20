@@ -29,6 +29,10 @@ never make them wait. The watchdog must keep working while the thread it watches
 
 - Hermes sampling start/stop and the remote-sampling commands run on the **JS thread**
   (`postToJs` on iOS, `runOnJSQueueThread` on Android), like the JS API's calls.
+- `jsStacks` windows: dumping runs on the JS thread; opening (enabling the sampler) may run on
+  any thread, so a stall on resume is still sampled. The window lock (`windowLock`, `gWindowMu`)
+  guards both, and the JS thread holds it while it dumps, so resume opens the window from a
+  worker instead of the main thread.
 - Android runs `void` TurboModule methods asynchronously on `mqt_v_native`; timing methods return
   a value so they stay synchronous on JS (see the comment in `src/NativeThreadInspector.ts`).
 - iOS keeps the JS `CallInvoker` behind `gInvokerMu`; Darwin notifications arrive on the main thread.

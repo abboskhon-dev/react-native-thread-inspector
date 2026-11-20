@@ -5,6 +5,18 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+### Added
+
+- **`jsStacks: true` saves JS stacks with every incident** (#41)
+  - The Hermes sampler stays on in the foreground and is restarted every 30 s; the samples around a stall are saved in the incident's `js-stacks/`.
+  - `rnti merge <incident-dir>` works without a session directory.
+  - `start()` reports it as the `hermesSamples` capability.
+  - Costs about 6% of one core on an idle Galaxy S21. Paused while a `sampling` or `rnti record` session runs.
+
+### Internal
+
+- The Android benchmark has a `stacks` mode, and `analyze.py` takes the baseline mode as a second argument (#41).
+
 ## 0.2.0 — 2026-11-20
 
 ### Added

@@ -88,7 +88,25 @@ TI.onIncidentSaved(({ path }) => {
 | `turboModules: true` | Sync calls and async execution of every native module | Installs RN's single global TurboModule perf logger, replacing one another SDK set |
 | `fabric: true` | Fabric commit+layout spans, mount-reported instants | Read-only hooks; mount *duration* is not observable |
 | `TI.sampling.start(hz)` / `stop()` | Hermes JS stack samples for a bounded session | Separate overhead; Android ignores `hz` (~100 Hz) |
+| `jsStacks: true` | Hermes JS stack samples around every incident, saved with it | About 6% of one core on an idle Galaxy S21; see below |
 | `useObservedCommit(name)` / `<ObservedCommit>` | Commit timestamp of one instrumented subtree | Not all React commits, not render time, not display time |
+
+### JS stacks with every incident
+
+A stall with no span around it is reported as unattributed time. With `start({ jsStacks: true })`
+the Hermes sampler stays on while the app is in the foreground, and each incident is saved with
+the samples around it, in `js-stacks/`. `rnti merge <incident-dir>` then shows where the time went,
+with no sampling session to start by hand.
+
+- The sampler runs at about 100 Hz and is restarted every 30 s, so its memory stays flat. On an
+  idle Galaxy S21 it added about 60 ms of CPU per second, 6% of one core. Under the benchmark's
+  active workload the difference was too small to measure
+  ([results](./benchmarks/results/2026-11-20-s21-js-stacks.txt)).
+- An incident grows by up to about 0.5 MB.
+- Hermes has one sampler per process. `TI.sampling.start()` and `rnti record` take it over until
+  they stop, and incidents in between get no stacks. Another SDK that stops the sampler leaves
+  gaps the same way.
+- Sampling stops in the background, 5 s after the app leaves the screen on Android.
 
 ### Native spans
 
@@ -137,7 +155,7 @@ npx rnti record stop android <app-id>
 npx rnti pull android <app-id>           # or: ios <bundle-id> [--device <udid>]
 npx rnti top <session-dir>
 npx rnti diff <session-a> <session-b>
-npx rnti merge <incident-dir> <session-dir>
+npx rnti merge <incident-dir> [<session-dir>]
 ```
 
 - `record start|stop` starts or stops a Hermes sampling session in a running app, with no button
@@ -153,7 +171,8 @@ npx rnti merge <incident-dir> <session-dir>
   counted.
 - `diff` compares the self-time shares of two sessions from the same build.
 - `merge` writes `trace.sampled.json` (adds a reconstructed JS stack track) and `samples.json` (hot
-  path and top frames per stall) into the incident.
+  path and top frames per stall) into the incident. Without a session it uses the samples the app
+  saved with the incident (`jsStacks: true`).
 
 `top` and `diff` take `--top <n>` and `--json`. Absolute bundle paths are stripped from frame names;
 unnamed functions appear as `(anonymous @<bytecode address>)`.
