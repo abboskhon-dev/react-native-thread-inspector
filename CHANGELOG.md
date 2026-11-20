@@ -13,6 +13,10 @@ release retitles it `## <version> — <date>`.
   - `start()` reports it as the `hermesSamples` capability.
   - Costs about 6% of one core on an idle Galaxy S21. Paused while a `sampling` or `rnti record` session runs.
 
+### Internal
+
+- The Android benchmark has a `stacks` mode, and `analyze.py` takes the baseline mode as a second argument (#41).
+
 ## 0.2.0 — 2026-11-20
 
 ### Added

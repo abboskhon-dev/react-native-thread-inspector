@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 PKG = 'threadinspector.example'
-MODES = ['none', 'off', 'record', 'core', 'full', 'sampling']
+MODES = ['none', 'off', 'record', 'core', 'full', 'sampling', 'stacks']
 WORKLOADS = ['idle', 'active']
 FIELDS = ['rep', 'order', 'mode', 'workload', 'start_ms', 'window_s', 'cpu_ms_per_s',
           'rss_kb', 'pss_kb', 'frames', 'janky_pct', 'p90_ms', 'p99_ms', 'js_frames_per_s',

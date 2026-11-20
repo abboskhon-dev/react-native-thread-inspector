@@ -1,0 +1,34 @@
+
+## active vs full (n=5 reps)
+      CPU ms/s: full    1319.7 | stacks     -1.3 [-111.7, +92.5] (-0.1%)
+       PSS KiB: full  144219.2 | stacks  +4076.8 [-9467.8, +17621.4] (+2.8%)
+       RSS KiB: full  238893.6 | stacks  -2560.0 [-14216.8, +9110.4] (-1.1%)
+       janky %: full       1.9 | stacks     -0.4 [-1.7, +0.3] (-23.0%)
+  p99 frame ms: full       7.8 | stacks     -0.2 [-1.2, +0.6] (-2.6%)
+   JS frames/s: full     111.2 | stacks     +0.7 [-4.7, +6.8] (+0.6%)
+     launch ms: full     200.2 | stacks    +28.6 [-1.2, +60.2] (+14.3%)
+  CPU us/frame: full   12151.3 | stacks   -107.2 [-2137.4, +1685.5] (-0.9%)
+
+## idle vs full (n=5 reps)
+      CPU ms/s: full      69.0 | stacks    +61.3 [+53.0, +66.3] (+88.9%)
+       PSS KiB: full   89751.2 | stacks  -1787.0 [-5391.2, +628.6] (-2.0%)
+       RSS KiB: full  162447.2 | stacks  -5583.2 [-17907.2, +860.8] (-3.4%)
+   JS frames/s: full       0.0 | stacks     +0.0 [+0.0, +0.0] (+nan%)
+     launch ms: full     207.0 | stacks     -0.6 [-14.0, +14.0] (-0.3%)
+
+## active: CPU ms/s by thread name
+        mqt_v_js: full   804.2 | stacks   805.1
+    RenderThread: full   242.3 | stacks   236.7
+ spector.example: full   173.8 | stacks   172.0
+ mali-cmar-backe: full    52.9 | stacks    53.5
+ HybridData Dest: full    12.3 | stacks    13.1
+  HeapTaskDaemon: full     6.8 | stacks     6.6
+   binder:6864_2: full     0.0 | stacks     2.7
+ hermes-sampling: full     0.0 | stacks     2.5
+
+## idle: CPU ms/s by thread name
+ spector.example: full    53.0 | stacks    45.3
+        mqt_v_js: full     6.4 | stacks    42.8
+ hermes-sampling: full     0.0 | stacks    24.0
+        Thread-2: full     9.7 | stacks     6.3
+ Jit thread pool: full     0.1 | stacks     0.1

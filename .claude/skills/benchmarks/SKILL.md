@@ -28,7 +28,8 @@ RSS, PSS (`dumpsys meminfo`), frame stats (`dumpsys gfxinfo`), JS frames/s from 
 Modes (`example/src/bench.tsx`, launched as `rntiexample://bench/<mode>/<workload>`):
 `none` no spans; `off` spans but the recorder never started; `record` recorder without probing;
 `core` recorder and watchdogs; `full` plus TurboModule and Fabric adapters; `sampling` plus Hermes
-sampling at 100 Hz. Workloads: `idle`, `active`.
+sampling at 100 Hz; `stacks` is `full` plus `jsStacks`, so use `--warmup 20 --window 30` to
+include one 30 s rotation. Workloads: `idle`, `active`.
 
 ## Reading results
 

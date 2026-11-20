@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Paired differences against the baseline mode ('none' if present, else 'off'), with bootstrap 95% intervals.
 
+Usage: analyze.py <results.csv> [<baseline mode>]
+
 Also prints mean CPU by thread name when <results>.threads.csv sits next to the results.
 """
 import csv
@@ -40,7 +42,7 @@ def thread_table(path, top=8):
             print(f'{name:>16}: ' + ' | '.join(f'{m} {mean(m, name):7.1f}' for m in modes))
 
 
-def main(path):
+def main(path, base=None):
     rows = list(csv.DictReader(open(path)))
     for r in rows:
         cpu, fps = num(r['cpu_ms_per_s']), num(r['js_frames_per_s'])
@@ -50,8 +52,8 @@ def main(path):
     for r in rows:
         by[(r['workload'], r['mode'])][int(r['rep'])] = r
     workloads = sorted({r['workload'] for r in rows})
-    base_mode = 'none' if any(r['mode'] == 'none' for r in rows) else 'off'
-    modes = [m for m in ['off', 'record', 'core', 'full', 'sampling'] if m != base_mode and any(r['mode'] == m for r in rows)]
+    base_mode = base or ('none' if any(r['mode'] == 'none' for r in rows) else 'off')
+    modes = [m for m in ['off', 'record', 'core', 'full', 'sampling', 'stacks'] if m != base_mode and any(r['mode'] == m for r in rows)]
     for wl in workloads:
         base = by[(wl, base_mode)]
         print(f'\n## {wl} vs {base_mode} (n={len(base)} reps)')
@@ -77,4 +79,4 @@ def main(path):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(*sys.argv[1:3])

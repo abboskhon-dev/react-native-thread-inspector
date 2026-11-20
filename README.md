@@ -99,7 +99,9 @@ the samples around it, in `js-stacks/`. `rnti merge <incident-dir>` then shows w
 with no sampling session to start by hand.
 
 - The sampler runs at about 100 Hz and is restarted every 30 s, so its memory stays flat. On an
-  idle Galaxy S21 it added about 60 ms of CPU per second, 6% of one core.
+  idle Galaxy S21 it added about 60 ms of CPU per second, 6% of one core. Under the benchmark's
+  active workload the difference was too small to measure
+  ([results](./benchmarks/results/2026-11-20-s21-js-stacks.txt)).
 - An incident grows by up to about 0.5 MB.
 - Hermes has one sampler per process. `TI.sampling.start()` and `rnti record` take it over until
   they stop, and incidents in between get no stacks. Another SDK that stops the sampler leaves

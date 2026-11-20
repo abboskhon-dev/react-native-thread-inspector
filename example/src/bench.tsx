@@ -4,7 +4,7 @@ import * as TI from 'react-native-thread-inspector';
 
 // none: no spans, same native calls; off: spans but recorder never started; record: core without probing.
 export type BenchMode =
-  'none' | 'off' | 'record' | 'core' | 'full' | 'sampling';
+  'none' | 'off' | 'record' | 'core' | 'full' | 'sampling' | 'stacks';
 export type BenchWorkload = 'idle' | 'active';
 export type BenchConfig = { mode: BenchMode; workload: BenchWorkload };
 
@@ -15,6 +15,7 @@ const MODES: BenchMode[] = [
   'core',
   'full',
   'sampling',
+  'stacks',
 ];
 const WORKLOADS: BenchWorkload[] = ['idle', 'active'];
 const CELLS = 300;
@@ -39,6 +40,7 @@ function startMode(mode: BenchMode) {
     turboModules: adapters,
     fabric: adapters,
     ...(mode === 'record' && { probeIntervalMs: 3_600_000 }),
+    jsStacks: mode === 'stacks',
   });
   if (mode === 'sampling') TI.sampling.start(100);
 }
