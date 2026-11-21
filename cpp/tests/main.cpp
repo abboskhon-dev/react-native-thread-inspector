@@ -4,7 +4,7 @@
 #include "IncidentController.h"
 #include "IncidentWriter.h"
 #include "JsonWriter.h"
-#include "Platform.h"
+#include "RntiPlatform.h"
 #include "Recorder.h"
 #include "ThreadCpu.h"
 #include "TurboModuleTracker.h"

@@ -16,6 +16,8 @@ release retitles it `## <version> — <date>`.
 ### Fixed
 
 - With `jsStacks`, `incident.json` no longer says no stack samples were captured; it points to `rnti merge` (#42).
+- **The iOS build no longer fails when Reanimated is installed** (#45)
+  - `cpp/core/Platform.h` is now `RntiPlatform.h`; on iOS `"Platform.h"` resolved to Reanimated's `platform.h`.
 
 ### Internal
 

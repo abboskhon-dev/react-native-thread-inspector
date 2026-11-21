@@ -1,6 +1,6 @@
 #include "Recorder.h"
 
-#include "Platform.h"
+#include "RntiPlatform.h"
 
 #include <algorithm>
 
