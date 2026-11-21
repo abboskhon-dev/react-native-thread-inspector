@@ -156,6 +156,10 @@ JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeSetForeground
   if (auto *i = Inspector::shared()) i->setForeground(fg == JNI_TRUE);
 }
 
+JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeSetJsStacks(JNIEnv *, jclass, jboolean on) {
+  if (auto *i = Inspector::shared()) i->setJsStacks(on == JNI_TRUE);
+}
+
 JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeAck(JNIEnv *, jclass, jint channel, jlong token) {
   if (channel != kJsChannel && channel != kMainChannel) return;
   std::function<void()> fn;

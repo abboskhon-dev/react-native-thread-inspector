@@ -41,6 +41,7 @@ class Inspector {
   void markJsThread();
   void markScreen(uint32_t label);
   void reportLongTask(uint64_t startNs, uint64_t durNs);
+  void setJsStacks(bool on) noexcept { writer_->setJsStacks(on); }
 
   Recorder &recorder() noexcept { return recorder_; }
   TurboModuleTracker &turboModules() noexcept { return turboModules_; }

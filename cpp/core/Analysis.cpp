@@ -115,7 +115,7 @@ constexpr size_t kMaxAssociated = 10;
 
 } // namespace
 
-std::vector<TriggerAnalysis> analyze(const Incident &incident, const ResolvedTrace &trace) {
+std::vector<TriggerAnalysis> analyze(const Incident &incident, const ResolvedTrace &trace, bool jsStacks) {
   std::unordered_set<uint32_t> lossyRings;
   for (const auto &r : incident.snapshot.rings) {
     if (r.stats.lostAfterPin > 0 || r.stats.skipped > 0 ||
@@ -186,7 +186,9 @@ std::vector<TriggerAnalysis> analyze(const Incident &incident, const ResolvedTra
       a.unknowns.emplace_back("Some span bounds were reconstructed across missing events; that time is reported as uncertain.");
     if (a.unattributedNs > 0)
       a.unknowns.emplace_back("Part of the interval has no instrumented span on the stalled thread.");
-    a.unknowns.emplace_back("No stack samples were captured; work inside spans is not attributed.");
+    a.unknowns.emplace_back(jsStacks ? "Work inside spans is not attributed here; run rnti merge on this incident to add the JS "
+                                       "stacks saved in js-stacks/."
+                                     : "No stack samples were captured; work inside spans is not attributed.");
     for (const auto &r : incident.snapshot.rings) {
       if (r.stats.lostAfterPin > 0) {
         a.unknowns.emplace_back(std::to_string(r.stats.lostAfterPin) + " events on ring " + std::to_string(r.ring) +

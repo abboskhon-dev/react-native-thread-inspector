@@ -92,7 +92,7 @@ void IncidentWriter::write(const Incident &incident) {
   bool ok = false;
   try {
     const ResolvedTrace trace = resolve(incident);
-    const auto analysis = analyze(incident, trace);
+    const auto analysis = analyze(incident, trace, jsStacks_.load(std::memory_order_relaxed));
     fs::create_directories(dir, ec);
     fs::remove_all(tmp, ec);
     fs::create_directories(tmp, ec);

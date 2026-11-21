@@ -51,6 +51,7 @@ struct TriggerAnalysis {
   std::vector<std::string> unknowns;
 };
 
-std::vector<TriggerAnalysis> analyze(const Incident &incident, const ResolvedTrace &trace);
+// jsStacks: the app saves JS stack samples next to each incident.
+std::vector<TriggerAnalysis> analyze(const Incident &incident, const ResolvedTrace &trace, bool jsStacks = false);
 
 } // namespace rnti

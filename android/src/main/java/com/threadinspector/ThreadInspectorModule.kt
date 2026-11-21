@@ -302,6 +302,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   private fun setJsStacks(enabled: Boolean) {
     jsStacks = enabled
+    NativeBridge.nativeSetJsStacks(enabled)
     mainHandler.removeCallbacks(windowTick)
     if (enabled) mainHandler.postDelayed(windowTick, STACK_WINDOW_MS)
     if (enabled) openWindow() else reactApplicationContext.runOnJSQueueThread { rotateWindow() }

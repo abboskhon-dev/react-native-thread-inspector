@@ -48,6 +48,7 @@ internal object NativeBridge {
 
   @JvmStatic external fun nativeStop()
   @JvmStatic external fun nativeSetForeground(foreground: Boolean)
+  @JvmStatic external fun nativeSetJsStacks(on: Boolean)
   @JvmStatic external fun nativeAck(channel: Int, token: Long)
   @JvmStatic external fun nativeNowNs(): Long
   @JvmStatic external fun nativeCpuMark()
