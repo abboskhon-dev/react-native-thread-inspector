@@ -1,7 +1,7 @@
 #include "Export.h"
 
 #include "JsonWriter.h"
-#include "Platform.h"
+#include "RntiPlatform.h"
 
 #include <algorithm>
 #include <set>

@@ -3,7 +3,7 @@
 #include "RntiFabric.h"
 
 #include "Inspector.h"
-#include "Platform.h"
+#include "RntiPlatform.h"
 
 #include <react/renderer/mounting/ShadowTree.h>
 #include <react/renderer/uimanager/UIManager.h>

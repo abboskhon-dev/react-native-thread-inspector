@@ -7,7 +7,7 @@
 #import <jsi/jsi.h>
 
 #include "Inspector.h"
-#include "Platform.h"
+#include "RntiPlatform.h"
 #include "RntiFabric.h"
 #include "RntiPerfLogger.h"
 #include "ThreadCpu.h"

@@ -1,6 +1,6 @@
 #include "Watchdog.h"
 
-#include "Platform.h"
+#include "RntiPlatform.h"
 
 #include <chrono>
 #include <limits>

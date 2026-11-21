@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Platform.h"
+#include "RntiPlatform.h"
 #include "Recorder.h"
 
 #include <atomic>
