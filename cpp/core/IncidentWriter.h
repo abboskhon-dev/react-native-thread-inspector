@@ -3,6 +3,7 @@
 #include "Export.h"
 #include "IncidentController.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -30,6 +31,8 @@ class IncidentWriter {
   void flush();
   uint64_t dropped() const;
   uint64_t failed() const;
+  // The app saves JS stacks next to each incident; the report then points at them.
+  void setJsStacks(bool on) noexcept { jsStacks_.store(on, std::memory_order_relaxed); }
 
  private:
   void run();
@@ -40,6 +43,7 @@ class IncidentWriter {
   const WriterConfig config_;
   const ExportMetadata meta_;
   SavedCallback onSaved_;
+  std::atomic<bool> jsStacks_{false};
 
   mutable std::mutex mu_;
   std::condition_variable cv_;

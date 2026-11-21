@@ -709,6 +709,7 @@ static void testExportAndWriter() {
   CHECK(rig.inbox.waitFor(1, 3s));
   rig.watchdog.stop();
   if (rig.inbox.items.empty()) return;
+  writer.setJsStacks(true);
   CHECK(writer.enqueue(std::move(rig.inbox.items[0])));
   writer.flush();
   CHECK(writer.failed() == 0);
@@ -732,7 +733,25 @@ static void testExportAndWriter() {
   CHECK(trace.find("\"ph\":\"s\"") != std::string::npos);
   CHECK(report.find("\"direct_containment\"") != std::string::npos);
   CHECK(report.find("\"explicit_flow\"") != std::string::npos);
+  CHECK(report.find("rnti merge") != std::string::npos);
+  CHECK(report.find("No stack samples") == std::string::npos);
   std::printf("  artifact: %s\n", path.c_str());
+}
+
+static void testStacksUnknownFollowsJsStacks() {
+  Incident inc;
+  inc.triggers.push_back({.source = TriggerSource::JsWatchdog, .tid = 1, .onsetNs = 100 * kMs, .endNs = 400 * kMs});
+  inc.captureEndNs = 500 * kMs;
+  const auto mentions = [&](bool jsStacks, const char *text) {
+    const auto analysis = analyze(inc, ResolvedTrace{}, jsStacks);
+    bool found = false;
+    for (const auto &u : analysis[0].unknowns) found |= u.find(text) != std::string::npos;
+    return found;
+  };
+  CHECK(mentions(false, "No stack samples"));
+  CHECK(!mentions(false, "rnti merge"));
+  CHECK(mentions(true, "rnti merge"));
+  CHECK(!mentions(true, "No stack samples"));
 }
 
 static void testOverlappingTriggersOnSeparateTracks() {
@@ -757,6 +776,7 @@ int main() {
     void (*fn)();
   } cases[] = {
       {"ring basic", testRingBasic},
+      {"stacks unknown follows jsStacks", testStacksUnknownFollowsJsStacks},
       {"end of an unstarted span is dropped", testEndOfUnstartedSpanIsDropped},
       {"overlapping triggers on separate tracks", testOverlappingTriggersOnSeparateTracks},
       {"ring wrap", testRingWrap},

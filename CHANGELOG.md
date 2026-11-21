@@ -13,6 +13,10 @@ release retitles it `## <version> — <date>`.
   - `start()` reports it as the `hermesSamples` capability.
   - Costs about 6% of one core on an idle Galaxy S21. Paused while a `sampling` or `rnti record` session runs.
 
+### Fixed
+
+- With `jsStacks`, `incident.json` no longer says no stack samples were captured; it points to `rnti merge` (#42).
+
 ### Internal
 
 - The Android benchmark has a `stacks` mode, and `analyze.py` takes the baseline mode as a second argument (#41).

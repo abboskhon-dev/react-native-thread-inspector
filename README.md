@@ -96,7 +96,8 @@ TI.onIncidentSaved(({ path }) => {
 A stall with no span around it is reported as unattributed time. With `start({ jsStacks: true })`
 the Hermes sampler stays on while the app is in the foreground, and each incident is saved with
 the samples around it, in `js-stacks/`. `rnti merge <incident-dir>` then shows where the time went,
-with no sampling session to start by hand.
+with no sampling session to start by hand. Until then, `incident.json` lists the unmerged stacks
+under `unknowns`.
 
 - The sampler runs at about 100 Hz and is restarted every 30 s, so its memory stays flat. On an
   idle Galaxy S21 it added about 60 ms of CPU per second, 6% of one core. Under the benchmark's

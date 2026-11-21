@@ -267,6 +267,9 @@ void rotateWindow() {
 
 void setJsStacks(bool enabled) {
   gJsStacks = enabled;
+#if RNTI_HAS_HERMES
+  if (auto *ins = Inspector::shared()) ins->setJsStacks(enabled);
+#endif
   {
     std::lock_guard<std::mutex> lk(gWindowMu);
     if (gWindowTimer) dispatch_source_cancel(gWindowTimer);
