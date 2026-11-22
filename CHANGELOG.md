@@ -5,6 +5,8 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-22
+
 ### Added
 
 - **`jsStacks: true` saves JS stacks with every incident** (#41)
