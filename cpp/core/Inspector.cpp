@@ -1,5 +1,7 @@
 #include "Inspector.h"
 
+#include "ThreadCpu.h"
+
 #include <mutex>
 
 namespace rnti {
@@ -81,7 +83,7 @@ void Inspector::markScreen(uint32_t label) {
 
 void Inspector::markJsThread() {
   if (!named_[0]->exchange(true)) recorder_.nameCurrentThread("RN JS");
-  watchdog_.hintThread(0, currentTid());
+  watchdog_.hintThread(0, currentTid(), currentCpuHandle());
 }
 
 void Inspector::reportLongTask(uint64_t startNs, uint64_t durNs) {

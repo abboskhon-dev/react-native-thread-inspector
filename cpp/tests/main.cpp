@@ -206,15 +206,21 @@ struct Rig {
   IncidentController controller;
   Watchdog watchdog;
   TaskThread js;
+  std::atomic<int> posts{0};
 
-  explicit Rig(IncidentConfig ic, RecorderConfig rc = {})
+  explicit Rig(IncidentConfig ic, RecorderConfig rc = {}, uint64_t idleProbeNs = 500 * kMs)
       : rec(rc), controller(rec, ic, inbox.sink()), watchdog(rec, controller) {
     js.post([this] { rec.nameCurrentThread("js"); });
     watchdog.addChannel({.name = "js",
                          .source = TriggerSource::JsWatchdog,
-                         .post = [this](std::function<void()> ack) { return js.post(std::move(ack)); },
+                         .post =
+                             [this](std::function<void()> ack) {
+                               posts.fetch_add(1);
+                               return js.post(std::move(ack));
+                             },
                          .intervalNs = 20 * kMs,
-                         .thresholdNs = 100 * kMs});
+                         .thresholdNs = 100 * kMs,
+                         .idleProbeNs = idleProbeNs});
   }
 };
 
@@ -386,7 +392,8 @@ static void testLateWatchdogStillReportsStall() {
                              return ok;
                            },
                        .intervalNs = 20 * kMs,
-                       .thresholdNs = 100 * kMs});
+                       .thresholdNs = 100 * kMs,
+                       .idleProbeNs = 0});
   js.post([] { std::this_thread::sleep_for(1ms); });
   watchdog.start();
   CHECK(inbox.waitFor(1, 3s));
@@ -398,6 +405,87 @@ static void testLateWatchdogStillReportsStall() {
   bool noted = false;
   for (const auto &u : analysis[0].unknowns) noted |= u.find("woke late") != std::string::npos;
   CHECK(noted);
+}
+
+static void testPolledAckKeepsExactEnd() {
+  Rig rig(fastConfig());
+  rig.watchdog.start();
+  std::this_thread::sleep_for(60ms);
+  std::atomic<uint64_t> blockEnd{0};
+  rig.js.post([&] {
+    std::this_thread::sleep_for(300ms);
+    blockEnd = nowNs();
+  });
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Trigger &t = rig.inbox.items[0].triggers[0];
+  CHECK(t.endNs >= blockEnd.load());
+  CHECK(t.endNs - blockEnd.load() < 10 * kMs);
+}
+
+static void testIdleThreadIsNotProbed() {
+  Rig rig(fastConfig());
+  rig.watchdog.start();
+  std::this_thread::sleep_for(100ms);
+  const int before = rig.posts.load();
+  std::this_thread::sleep_for(500ms);
+  CHECK(rig.posts.load() - before <= 1);
+  rig.watchdog.stop();
+}
+
+static void testStallFromIdleHasTightOnset() {
+  Rig rig(fastConfig());
+  rig.watchdog.start();
+  // Clear of the 500 ms safety probe: a cheap block right after an ack is a known gap.
+  std::this_thread::sleep_for(250ms);
+  std::atomic<uint64_t> taskStart{0};
+  rig.js.post([&] {
+    taskStart = nowNs();
+    std::this_thread::sleep_for(300ms);
+  });
+  CHECK(rig.inbox.waitFor(1, 3s));
+  rig.watchdog.stop();
+  if (rig.inbox.items.empty()) return;
+  const Trigger &t = rig.inbox.items[0].triggers[0];
+  CHECK(t.onsetNs >= taskStart.load());
+  CHECK(t.onsetNs - taskStart.load() < 30 * kMs);
+}
+
+static void testStallRightAfterAckIsProbed() {
+  Recorder rec;
+  IncidentInbox inbox;
+  IncidentController controller(rec, fastConfig(), inbox.sink());
+  Watchdog watchdog(rec, controller);
+  TaskThread js;
+  std::atomic<int> posts{0};
+  std::atomic<uint64_t> taskStart{0};
+  watchdog.addChannel({.name = "js",
+                       .source = TriggerSource::JsWatchdog,
+                       .post =
+                           [&](std::function<void()> ack) {
+                             const bool ok = js.post(std::move(ack));
+                             // Queued behind the ack, so it starts before the watchdog collects the ack.
+                             if (posts.fetch_add(1) == 2) {
+                               js.post([&] {
+                                 taskStart = nowNs();
+                                 while (nowNs() - taskStart < kMs) {
+                                 }
+                                 std::this_thread::sleep_for(300ms);
+                               });
+                             }
+                             return ok;
+                           },
+                       .intervalNs = 20 * kMs,
+                       .thresholdNs = 100 * kMs,
+                       .idleProbeNs = 500 * kMs});
+  watchdog.start();
+  CHECK(inbox.waitFor(1, 3s));
+  watchdog.stop();
+  if (inbox.items.empty()) return;
+  const Trigger &t = inbox.items[0].triggers[0];
+  CHECK(t.onsetNs >= taskStart.load());
+  CHECK(t.onsetNs - taskStart.load() < 40 * kMs);
 }
 
 static void testLostEndIsUncertainNotAttributed() {
@@ -640,7 +728,7 @@ static void testThreadCpuSnapshotSeesBusyThread() {
 }
 
 static void testPrehistoryPinnedDuringFlood() {
-  Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8});
+  Rig rig(fastConfig(), {.eventsPerThread = 64, .maxThreads = 8}, 0);
   const uint32_t marker = rig.rec.intern("flood.marker");
   const uint32_t noise = rig.rec.intern("flood.noise");
   std::atomic<bool> stopFlood{false};
@@ -789,6 +877,10 @@ int main() {
       {"stall before first ack names thread", testStallBeforeFirstAck},
       {"async span is temporal, not containment", testAsyncSpanIsNotContainment},
       {"late watchdog still reports stall", testLateWatchdogStillReportsStall},
+      {"polled ack keeps exact stall end", testPolledAckKeepsExactEnd},
+      {"idle thread is not probed", testIdleThreadIsNotProbed},
+      {"stall from idle has tight onset", testStallFromIdleHasTightOnset},
+      {"stall right after an ack is probed", testStallRightAfterAckIsProbed},
       {"lost end is uncertain, not attributed", testLostEndIsUncertainNotAttributed},
       {"background mid-stall ends lifecycle", testBackgroundMidStallEndsLifecycle},
       {"unrecovered startup hang uses thread hint", testUnrecoveredStartupHangUsesHint},

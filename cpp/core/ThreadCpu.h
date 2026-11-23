@@ -21,6 +21,11 @@ struct CpuSnapshot {
   std::vector<ThreadCpu> threads;
 };
 
+// Opaque id for reading the calling thread's CPU clock from another thread; 0 = unavailable.
+uint64_t currentCpuHandle() noexcept;
+// CPU time used so far by the thread behind `handle`; false if it cannot be read.
+bool threadCpuNs(uint64_t handle, uint64_t &out) noexcept;
+
 // CPU time used so far by the process and by each thread that is alive now.
 CpuSnapshot cpuSnapshot();
 
