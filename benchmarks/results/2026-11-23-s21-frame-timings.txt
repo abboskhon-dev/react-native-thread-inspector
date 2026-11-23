@@ -1,0 +1,20 @@
+
+## active vs none (n=8 reps)
+      CPU ms/s: none    1555.3 | core    -32.3 [-103.1, +6.9] (-2.1%)
+       PSS KiB: none  175706.4 | core  +9991.8 [-358.1, +23109.1] (+5.7%)
+       RSS KiB: none  258219.0 | core +13918.0 [+5220.5, +24888.0] (+5.4%)
+       janky %: none      15.1 | core     +0.8 [-4.1, +8.1] (+5.0%)
+  p99 frame ms: none      13.0 | core     -0.6 [-1.8, +0.4] (-4.8%)
+   JS frames/s: none      82.4 | core     +1.2 [-5.9, +8.0] (+1.5%)
+     launch ms: none     193.2 | core    +23.2 [+4.6, +48.8] (+12.0%)
+  CPU us/frame: none   19102.2 | core   -303.9 [-1955.9, +1384.9] (-1.6%)
+
+## active: CPU ms/s by thread name
+        mqt_v_js: core   924.6 | none   952.1
+    RenderThread: core   268.7 | none   275.4
+ spector.example: core   211.6 | none   218.5
+ mali-cmar-backe: core    49.6 | none    51.0
+ HybridData Dest: core    15.6 | none    17.4
+  HeapTaskDaemon: core     9.8 | none    10.7
+     rnti.frames: core     6.1 | none     0.0
+  binder:13921_1: core     3.3 | none     0.0

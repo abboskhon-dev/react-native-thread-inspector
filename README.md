@@ -146,7 +146,13 @@ queue.async { RNThreadInspector.measure("upload.encode", flowId: flow) { encode(
 - **screen** at detection and transitions in the window.
 - **coverage**: per-thread ring stats, overwritten and dropped event counts.
 
-`trace.json` is Chrome trace format; open it in Perfetto.
+`trace.json` is Chrome trace format; open it in Perfetto. On Android 8.0+ it has a `rnti.frames`
+track: every frame the app's window drew, from intended vsync to the end of the app's work on it
+(`FrameMetrics`), named `frame.slow` when it missed its deadline. That is not when the frame reached
+the display, and a screen that draws nothing has no frames to drop. It costs about 6 ms of CPU per
+second while a Galaxy S21 draws about 73 frames a second
+([results](./benchmarks/results/2026-11-23-s21-frame-timings.txt)). On iOS the trace has main run
+loop busy intervals instead.
 
 ## Command line
 

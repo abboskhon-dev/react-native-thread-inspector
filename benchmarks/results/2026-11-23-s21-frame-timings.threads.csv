@@ -1,0 +1,244 @@
+rep,order,mode,workload,tid,name,cpu_ms_per_s
+0,0,core,active,13276,mqt_v_js,772.17
+0,0,core,active,13264,RenderThread,219.4
+0,0,core,active,13245,spector.example,166.69
+0,0,core,active,13272,mali-cmar-backe,50.07
+0,0,core,active,13295,mqt_v_js,41.51
+0,0,core,active,13273,HybridData Dest,18.45
+0,0,core,active,13249,HeapTaskDaemon,10.54
+0,0,core,active,13254,binder:13245_2,8.57
+0,0,core,active,13296,binder:13245_4,7.91
+0,0,core,active,13282,rnti.frames,6.59
+0,0,core,active,13253,binder:13245_1,5.27
+0,0,core,active,13294,binder:13245_3,3.29
+0,0,core,active,13463,binder:13245_5,3.29
+0,0,core,active,13248,Jit thread pool,1.98
+0,0,core,active,13267,mali-mem-purge,0.66
+0,0,core,active,13290,Thread-2,0.66
+0,1,none,active,13591,mqt_v_js,923.13
+0,1,none,active,13579,RenderThread,285.71
+0,1,none,active,13560,spector.example,208.51
+0,1,none,active,13587,mali-cmar-backe,60.71
+0,1,none,active,13608,mqt_v_js,54.77
+0,1,none,active,13588,HybridData Dest,18.48
+0,1,none,active,13570,HeapTaskDaemon,9.9
+0,1,none,active,13575,binder:13560_2,9.24
+0,1,none,active,13576,binder:13560_3,7.92
+0,1,none,active,13569,Jit thread pool,2.64
+0,1,none,active,13607,binder:13560_1,2.64
+0,1,none,active,13612,binder:13560_4,2.64
+0,1,none,active,13593,hades,1.98
+0,1,none,active,13582,mali-mem-purge,1.32
+1,2,core,active,13956,mqt_v_js,887.22
+1,2,core,active,13942,RenderThread,288.05
+1,2,core,active,13921,spector.example,216.86
+1,2,core,active,13975,mqt_v_js,55.37
+1,2,core,active,13952,mali-cmar-backe,54.71
+1,2,core,active,13930,binder:13921_1,23.73
+1,2,core,active,13953,HybridData Dest,14.5
+1,2,core,active,13926,HeapTaskDaemon,8.57
+1,2,core,active,13959,rnti.frames,6.59
+1,2,core,active,13925,Jit thread pool,2.64
+1,2,core,active,13973,binder:13921_1,2.64
+1,2,core,active,13970,Thread-2,1.32
+1,2,core,active,13947,mali-mem-purge,0.66
+1,2,core,active,13958,hades,0.66
+1,3,none,active,14130,mqt_v_js,909.03
+1,3,none,active,14118,RenderThread,268.56
+1,3,none,active,14098,spector.example,221.83
+1,3,none,active,14150,mqt_v_js,51.34
+1,3,none,active,14125,mali-cmar-backe,49.37
+1,3,none,active,14127,HybridData Dest,17.11
+1,3,none,active,14109,HeapTaskDaemon,11.19
+1,3,none,active,14114,binder:14098_2,10.53
+1,3,none,active,14142,binder:14098_4,5.27
+1,3,none,active,14149,binder:14098_2,2.63
+1,3,none,active,14108,Jit thread pool,1.97
+1,3,none,active,14115,binder:14098_3,1.32
+1,3,none,active,14120,mali-mem-purge,1.32
+2,4,none,active,14439,mqt_v_js,889.18
+2,4,none,active,14426,RenderThread,268.99
+2,4,none,active,14407,spector.example,217.69
+2,4,none,active,14452,mqt_v_js,50.64
+2,4,none,active,14434,mali-cmar-backe,49.33
+2,4,none,active,14435,HybridData Dest,17.1
+2,4,none,active,14417,HeapTaskDaemon,11.18
+2,4,none,active,14421,binder:14407_1,7.23
+2,4,none,active,14423,binder:14407_3,4.6
+2,4,none,active,14499,binder:14407_4,3.29
+2,4,none,active,14416,Jit thread pool,2.63
+2,4,none,active,14451,binder:14407_1,2.63
+2,4,none,active,14422,binder:14407_2,1.97
+2,4,none,active,14429,mali-mem-purge,1.32
+2,4,none,active,14441,hades,0.66
+2,5,core,active,14619,mqt_v_js,887.99
+2,5,core,active,14606,RenderThread,263.64
+2,5,core,active,14587,spector.example,208.55
+2,5,core,active,14635,mqt_v_js,49.19
+2,5,core,active,14615,mali-cmar-backe,46.56
+2,5,core,active,14616,HybridData Dest,17.05
+2,5,core,active,14648,binder:14587_4,12.46
+2,5,core,active,14591,HeapTaskDaemon,11.15
+2,5,core,active,14602,binder:14587_2,6.56
+2,5,core,active,14622,rnti.frames,5.9
+2,5,core,active,14590,Jit thread pool,3.28
+2,5,core,active,14604,binder:14587_3,2.62
+2,5,core,active,14634,binder:14587_3,2.62
+2,5,core,active,14609,mali-mem-purge,1.31
+2,5,core,active,14632,Thread-2,1.31
+2,5,core,active,14599,binder:14587_1,0.66
+2,5,core,active,14621,hades,0.66
+3,6,core,active,15011,mqt_v_js,894.55
+3,6,core,active,14999,RenderThread,263.3
+3,6,core,active,14979,spector.example,213.93
+3,6,core,active,15007,mali-cmar-backe,47.39
+3,6,core,active,15029,mqt_v_js,47.39
+3,6,core,active,15008,HybridData Dest,20.41
+3,6,core,active,14990,HeapTaskDaemon,10.53
+3,6,core,active,15035,binder:14979_4,9.87
+3,6,core,active,14994,binder:14979_1,7.9
+3,6,core,active,15014,rnti.frames,5.27
+3,6,core,active,14995,binder:14979_2,4.61
+3,6,core,active,15028,binder:14979_3,3.29
+3,6,core,active,14989,Jit thread pool,1.97
+3,6,core,active,15026,Thread-2,1.32
+3,6,core,active,15002,mali-mem-purge,0.66
+3,6,core,active,15013,hades,0.66
+3,6,core,active,15025,Thread-3,0.66
+3,7,none,active,15216,mqt_v_js,886.3
+3,7,none,active,15202,RenderThread,269.2
+3,7,none,active,15181,spector.example,216.95
+3,7,none,active,15242,mqt_v_js,48.28
+3,7,none,active,15212,mali-cmar-backe,46.96
+3,7,none,active,15213,HybridData Dest,13.89
+3,7,none,active,15235,binder:15181_4,13.23
+3,7,none,active,15192,HeapTaskDaemon,12.57
+3,7,none,active,15191,Jit thread pool,4.63
+3,7,none,active,15241,binder:15181_3,3.31
+3,7,none,active,15196,binder:15181_1,2.65
+3,7,none,active,15198,binder:15181_3,1.98
+3,7,none,active,15205,mali-mem-purge,0.66
+3,7,none,active,15221,hades,0.66
+4,8,none,active,15551,mqt_v_js,888.77
+4,8,none,active,15539,RenderThread,269.66
+4,8,none,active,15516,spector.example,216.26
+4,8,none,active,15564,mqt_v_js,50.11
+4,8,none,active,15547,mali-cmar-backe,48.79
+4,8,none,active,15548,HybridData Dest,17.8
+4,8,none,active,15528,HeapTaskDaemon,10.55
+4,8,none,active,15532,binder:15516_1,9.23
+4,8,none,active,15533,binder:15516_2,6.59
+4,8,none,active,15570,binder:15516_4,3.96
+4,8,none,active,15563,binder:15516_3,3.3
+4,8,none,active,15527,Jit thread pool,1.98
+4,8,none,active,15542,mali-mem-purge,1.32
+4,8,none,active,15554,hades,0.66
+4,9,core,active,15731,mqt_v_js,880.02
+4,9,core,active,15719,RenderThread,269.56
+4,9,core,active,15700,spector.example,211.42
+4,9,core,active,15747,mqt_v_js,50.87
+4,9,core,active,15727,mali-cmar-backe,47.57
+4,9,core,active,15728,HybridData Dest,13.87
+4,9,core,active,15715,binder:15700_2,12.55
+4,9,core,active,15710,HeapTaskDaemon,10.57
+4,9,core,active,15714,binder:15700_1,7.27
+4,9,core,active,15734,rnti.frames,6.61
+4,9,core,active,15709,Jit thread pool,4.62
+4,9,core,active,15746,binder:15700_1,3.3
+4,9,core,active,15742,Thread-2,1.98
+4,9,core,active,15771,binder:15700_4,1.98
+4,9,core,active,15716,binder:15700_3,1.32
+4,9,core,active,15722,mali-mem-purge,1.32
+4,9,core,active,15733,hades,0.66
+4,9,core,active,15741,Thread-3,0.66
+5,10,none,active,15909,mqt_v_js,905.73
+5,10,none,active,15896,RenderThread,266.7
+5,10,none,active,15875,spector.example,218.51
+5,10,none,active,15923,mqt_v_js,51.49
+5,10,none,active,15905,mali-cmar-backe,48.85
+5,10,none,active,15906,HybridData Dest,17.82
+5,10,none,active,15880,HeapTaskDaemon,11.22
+5,10,none,active,15919,binder:15875_4,9.9
+5,10,none,active,15893,binder:15875_3,6.6
+5,10,none,active,15922,binder:15875_4,3.3
+5,10,none,active,15879,Jit thread pool,2.64
+5,10,none,active,15885,binder:15875_1,1.98
+5,10,none,active,15900,mali-mem-purge,0.66
+5,11,core,active,16202,mqt_v_js,901.76
+5,11,core,active,16188,RenderThread,266.24
+5,11,core,active,16168,spector.example,216.03
+5,11,core,active,16222,mqt_v_js,48.89
+5,11,core,active,16196,mali-cmar-backe,48.23
+5,11,core,active,16198,HybridData Dest,17.18
+5,11,core,active,16235,binder:16168_4,14.53
+5,11,core,active,16173,HeapTaskDaemon,10.57
+5,11,core,active,16177,binder:16168_1,5.95
+5,11,core,active,16207,rnti.frames,5.95
+5,11,core,active,16178,binder:16168_2,4.62
+5,11,core,active,16172,Jit thread pool,2.64
+5,11,core,active,16221,binder:16168_1,2.64
+5,11,core,active,16191,mali-mem-purge,1.32
+5,11,core,active,16218,Thread-2,1.32
+5,11,core,active,16217,Thread-3,0.66
+6,12,none,active,16382,mqt_v_js,932.95
+6,12,none,active,16369,RenderThread,273.08
+6,12,none,active,16349,spector.example,212.91
+6,12,none,active,16377,mali-cmar-backe,52.9
+6,12,none,active,16396,mqt_v_js,48.93
+6,12,none,active,16379,HybridData Dest,18.51
+6,12,none,active,16353,HeapTaskDaemon,9.92
+6,12,none,active,16358,binder:16349_2,9.26
+6,12,none,active,17217,binder:16349_5,5.95
+6,12,none,active,16395,binder:16349_3,3.31
+6,12,none,active,16352,Jit thread pool,2.64
+6,12,none,active,16357,binder:16349_1,2.64
+6,12,none,active,16360,binder:16349_3,1.98
+6,12,none,active,16372,mali-mem-purge,0.66
+6,12,none,active,16384,hades,0.66
+6,13,core,active,17793,mqt_v_js,904.0
+6,13,core,active,17779,RenderThread,289.7
+6,13,core,active,17759,spector.example,230.45
+6,13,core,active,17788,mali-cmar-backe,52.67
+6,13,core,active,17811,mqt_v_js,47.41
+6,13,core,active,17769,binder:17759_2,12.51
+6,13,core,active,17790,HybridData Dest,11.85
+6,13,core,active,17764,HeapTaskDaemon,7.9
+6,13,core,active,17820,binder:17759_4,7.24
+6,13,core,active,17797,rnti.frames,5.93
+6,13,core,active,17768,binder:17759_1,4.61
+6,13,core,active,17809,binder:17759_3,3.95
+6,13,core,active,17763,Jit thread pool,2.63
+6,13,core,active,17805,Thread-2,1.98
+6,13,core,active,17783,mali-mem-purge,1.32
+6,13,core,active,17795,hades,1.32
+6,13,core,active,17804,Thread-3,0.66
+7,14,none,active,18125,mqt_v_js,877.48
+7,14,none,active,18112,RenderThread,301.7
+7,14,none,active,18092,spector.example,235.31
+7,14,none,active,18120,mali-cmar-backe,51.27
+7,14,none,active,18147,mqt_v_js,48.64
+7,14,none,active,18121,HybridData Dest,18.4
+7,14,none,active,18109,binder:18092_3,9.86
+7,14,none,active,18103,HeapTaskDaemon,9.2
+7,14,none,active,18108,binder:18092_2,6.57
+7,14,none,active,18102,Jit thread pool,3.29
+7,14,none,active,18146,binder:18092_3,2.63
+7,14,none,active,18175,binder:18092_4,2.63
+7,14,none,active,18115,mali-mem-purge,0.66
+7,14,none,active,18127,hades,0.66
+7,15,core,active,18305,mqt_v_js,880.08
+7,15,core,active,18291,RenderThread,289.41
+7,15,core,active,18272,spector.example,228.76
+7,15,core,active,18299,mali-cmar-backe,49.44
+7,15,core,active,18323,mqt_v_js,48.78
+7,15,core,active,18302,HybridData Dest,11.87
+7,15,core,active,18358,binder:18272_4,10.55
+7,15,core,active,18288,binder:18272_3,9.23
+7,15,core,active,18282,HeapTaskDaemon,8.57
+7,15,core,active,18308,rnti.frames,5.93
+7,15,core,active,18281,Jit thread pool,4.61
+7,15,core,active,18287,binder:18272_2,4.61
+7,15,core,active,18322,binder:18272_3,2.64
+7,15,core,active,18294,mali-mem-purge,1.32
+7,15,core,active,18319,Thread-2,1.32
+7,15,core,active,18318,Thread-3,0.66

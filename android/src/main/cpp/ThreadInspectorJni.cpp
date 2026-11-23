@@ -230,6 +230,20 @@ JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeComplete(JNIE
     i->recorder().complete(static_cast<Category>(category), label, start, dur, static_cast<uint16_t>(eventFlags), flow);
 }
 
+JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeFrame(JNIEnv *, jclass, jint label, jlong start,
+                                                                         jlong dur) {
+  auto *i = Inspector::shared();
+  if (!i || start <= 0 || dur <= 0) return;
+  Event e;
+  e.ts = static_cast<uint64_t>(start);
+  e.dur = static_cast<uint64_t>(dur);
+  e.label = static_cast<uint32_t>(label);
+  e.kind = EventKind::Complete;
+  e.category = Category::Frame;
+  e.flags = flags::Envelope;
+  i->recorder().record(e);
+}
+
 JNIEXPORT void JNICALL Java_com_threadinspector_NativeBridge_nativeLongTask(JNIEnv *, jclass, jlong start,
                                                                             jlong dur) {
   if (auto *i = Inspector::shared(); i && start > 0 && dur > 0) i->reportLongTask(start, dur);
