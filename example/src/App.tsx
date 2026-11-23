@@ -168,10 +168,12 @@ function HomeScreen() {
   const [status, setStatus] = useState('idle');
 
   useEffect(() => {
-    // Lets scripts drive scenarios: rntiexample://scenario/<id>
+    // Lets scripts drive scenarios: rntiexample://scenario/<id>[?delay=<ms>]
     const run = (url?: string | null) => {
       const id = url?.match(/scenario\/([\w-]+)/)?.[1];
-      scenarios.find((s) => s.id === id)?.run();
+      const delay = Number(url?.match(/[?&]delay=(\d+)/)?.[1] ?? 0);
+      const scenario = scenarios.find((s) => s.id === id);
+      if (scenario) setTimeout(() => scenario.run(), delay);
     };
     Linking.getInitialURL().then(run);
     // iOS launch argument: -rntiScenario <id>

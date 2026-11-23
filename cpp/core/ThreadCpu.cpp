@@ -77,6 +77,35 @@ void readThreads(std::vector<ThreadCpu> &out) {
 
 } // namespace
 
+#if defined(__APPLE__)
+
+uint64_t currentCpuHandle() noexcept { return pthread_mach_thread_np(pthread_self()); }
+
+bool threadCpuNs(uint64_t handle, uint64_t &out) noexcept {
+  thread_basic_info_data_t info{};
+  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+  if (thread_info(static_cast<thread_act_t>(handle), THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info),
+                  &count) != KERN_SUCCESS)
+    return false;
+  const auto us = [](const time_value_t &t) { return static_cast<uint64_t>(t.seconds) * 1000000ull + t.microseconds; };
+  out = (us(info.user_time) + us(info.system_time)) * 1000ull;
+  return true;
+}
+
+#else
+
+uint64_t currentCpuHandle() noexcept { return currentTid(); }
+
+bool threadCpuNs(uint64_t handle, uint64_t &out) noexcept {
+  const auto clock = static_cast<clockid_t>((~static_cast<unsigned int>(handle) << 3) | 6u);
+  timespec ts{};
+  if (clock_gettime(clock, &ts) != 0) return false;
+  out = toNs(ts);
+  return true;
+}
+
+#endif
+
 CpuSnapshot cpuSnapshot() {
   CpuSnapshot snap;
   snap.monoNs = nowNs();

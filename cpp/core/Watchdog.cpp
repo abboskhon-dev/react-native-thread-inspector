@@ -1,6 +1,7 @@
 #include "Watchdog.h"
 
 #include "RntiPlatform.h"
+#include "ThreadCpu.h"
 
 #include <chrono>
 #include <limits>
@@ -9,6 +10,8 @@ namespace rnti {
 
 namespace {
 constexpr uint64_t kNever = std::numeric_limits<uint64_t>::max();
+// CPU the observed thread may use after its ack is stamped, returning to its loop; more counts as work.
+constexpr uint64_t kAckTailNs = 50 * 1000;
 }
 
 Watchdog::Watchdog(Recorder &recorder, IncidentController &controller, WatchdogConfig config)
@@ -57,8 +60,23 @@ void Watchdog::setForeground(bool foreground) {
   wake_->cv.notify_one();
 }
 
-void Watchdog::hintThread(size_t channel, uint32_t tid) {
-  if (channel < channels_.size()) channels_[channel].ack->tidHint.store(tid, std::memory_order_relaxed);
+void Watchdog::hintThread(size_t channel, uint32_t tid, uint64_t cpuHandle) {
+  if (channel >= channels_.size()) return;
+  channels_[channel].ack->tidHint.store(tid, std::memory_order_relaxed);
+  if (cpuHandle) channels_[channel].ack->cpuHandle.store(cpuHandle, std::memory_order_relaxed);
+}
+
+bool Watchdog::cpuMoved(Channel &ch) {
+  uint64_t cpu = 0;
+  const uint64_t handle = ch.ack->cpuHandle.load(std::memory_order_relaxed);
+  if (!handle || !threadCpuNs(handle, cpu)) {
+    ch.cpuKnown = false;
+    return true;
+  }
+  const bool moved = !ch.cpuKnown || cpu > ch.cpuNs;
+  ch.cpuKnown = true;
+  ch.cpuNs = cpu;
+  return moved;
 }
 
 void Watchdog::resetChannels(uint64_t now) {
@@ -68,6 +86,7 @@ void Watchdog::resetChannels(uint64_t now) {
     ch.stalled = false;
     ch.lastAckNs = 0;
     ch.nextProbeNs = now;
+    ch.cpuKnown = false;
   }
 }
 
@@ -95,7 +114,10 @@ void Watchdog::service(Channel &ch, uint64_t now) {
       ch.stalled = false;
       ch.outstanding = false;
       ch.lastAckNs = ackNs;
-      ch.nextProbeNs = ackNs + ch.config.intervalNs;
+      ch.nextProbeNs = std::max(ch.enqueueNs + ch.config.intervalNs, ackNs);
+      const uint64_t ackCpu = ch.ack->ackCpuNs.load(std::memory_order_relaxed);
+      ch.cpuKnown = ackCpu != 0;
+      ch.cpuNs = ackCpu + kAckTailNs;
     } else if (!ch.stalled && now - ch.enqueueNs >= ch.config.thresholdNs) {
       ch.stalled = true;
       if (!ch.lastAckTid) ch.lastAckTid = ch.ack->tidHint.load(std::memory_order_relaxed);
@@ -112,22 +134,27 @@ void Watchdog::service(Channel &ch, uint64_t now) {
     }
   }
 
+  if (!ch.outstanding && now >= ch.nextProbeNs && ch.config.idleProbeNs &&
+      now - ch.enqueueNs < ch.config.idleProbeNs && !cpuMoved(ch)) {
+    ch.nextProbeNs = now + ch.config.intervalNs;
+    return;
+  }
+
   if (!ch.outstanding && now >= ch.nextProbeNs) {
     const uint64_t seq = ++ch.seq;
     ch.ack->expectedSeq.store(seq, std::memory_order_relaxed);
     ch.enqueueNs = nowNs();
     auto state = ch.ack;
-    auto wake = wake_;
-    const bool posted = ch.config.post([state, wake, seq] {
+    // No wake: the ack stamps its own time and the next poll collects it.
+    const bool posted = ch.config.post([state, seq] {
       if (state->expectedSeq.load(std::memory_order_relaxed) != seq) return;
+      const uint64_t handle = currentCpuHandle();
+      state->cpuHandle.store(handle, std::memory_order_relaxed);
       state->ackNs.store(nowNs(), std::memory_order_relaxed);
       state->ackTid.store(currentTid(), std::memory_order_relaxed);
+      uint64_t cpu = 0;
+      state->ackCpuNs.store(threadCpuNs(handle, cpu) ? cpu : 0, std::memory_order_relaxed);
       state->ackedSeq.store(seq, std::memory_order_release);
-      {
-        std::lock_guard<std::mutex> lk(wake->mu);
-        wake->pending = true;
-      }
-      wake->cv.notify_one();
     });
     if (posted) {
       ch.outstanding = true;
@@ -144,9 +171,14 @@ uint64_t Watchdog::nextWakeNs(uint64_t now) const {
   if (foreground_.load()) {
     for (const auto &ch : channels_) {
       uint64_t at;
-      if (!ch.outstanding) at = ch.nextProbeNs;
-      else if (!ch.stalled) at = ch.enqueueNs + ch.config.thresholdNs;
-      else continue; // the ack itself wakes us
+      if (!ch.outstanding) {
+        at = ch.nextProbeNs;
+      } else {
+        const uint64_t step = std::max<uint64_t>(ch.config.intervalNs, kMs);
+        const uint64_t elapsed = now > ch.enqueueNs ? now - ch.enqueueNs : 0;
+        at = ch.enqueueNs + (elapsed / step + 1) * step;
+        if (!ch.stalled) at = std::min(at, ch.enqueueNs + ch.config.thresholdNs);
+      }
       next = std::min(next, std::max(at, now));
     }
   }

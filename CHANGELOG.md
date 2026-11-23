@@ -5,6 +5,18 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+### Changed
+
+- **The watchdog probes less when the app is idle** (#52)
+  - A thread that has used no CPU since its last answer is probed every 500 ms instead of every interval; a stall from idle is still caught within one interval.
+  - Probe answers no longer wake the watchdog thread.
+  - Idle overhead on a Galaxy S21 drops from about 17 to 6 ms of CPU per second.
+  - With `jsStacks: true` the sampler keeps the JS thread busy, so JS probes are not skipped.
+
+### Internal
+
+- The example's scenario deep link takes `?delay=<ms>` (#52).
+
 ## 0.3.0 — 2026-11-22
 
 ### Added

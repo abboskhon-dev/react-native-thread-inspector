@@ -21,6 +21,8 @@ struct ProbeChannelConfig {
   std::function<bool(std::function<void()> ack)> post;
   uint64_t intervalNs = 100 * kMs;
   uint64_t thresholdNs = 200 * kMs;
+  // Skip probes while the thread has used no CPU, but probe at least this often; 0 = always probe.
+  uint64_t idleProbeNs = 500 * kMs;
 };
 
 struct WatchdogConfig {
@@ -38,7 +40,7 @@ class Watchdog {
   void stop();
   void setForeground(bool foreground);
   // Thread a channel's acks will run on, used until the first ack arrives.
-  void hintThread(size_t channel, uint32_t tid);
+  void hintThread(size_t channel, uint32_t tid, uint64_t cpuHandle = 0);
 
  private:
   struct Wake {
@@ -54,6 +56,8 @@ class Watchdog {
     std::atomic<uint64_t> ackNs{0};
     std::atomic<uint32_t> ackTid{0};
     std::atomic<uint32_t> tidHint{0};
+    std::atomic<uint64_t> cpuHandle{0};
+    std::atomic<uint64_t> ackCpuNs{0};
   };
 
   struct Channel {
@@ -68,11 +72,14 @@ class Watchdog {
     uint64_t lastAckNs = 0;
     uint32_t lastAckTid = 0;
     uint64_t nextProbeNs = 0;
+    bool cpuKnown = false;
+    uint64_t cpuNs = 0;
   };
 
   void run();
   void service(Channel &ch, uint64_t now);
   void resetChannels(uint64_t now);
+  bool cpuMoved(Channel &ch);
   uint64_t nextWakeNs(uint64_t now) const;
 
   Recorder &recorder_;
