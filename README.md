@@ -233,7 +233,8 @@ inside the app project: it uses the `metro-symbolicate` that React Native instal
 - Overhead budgets are being measured; see `benchmarks/`. An idle app costs about 6 ms of CPU
   per second on a Galaxy S21: the watchdog skips probes to threads that have used no CPU, and
   checks each one at least every 500 ms. With `jsStacks: true` the JS thread is never idle, so
-  its probes are never skipped.
+  its probes are never skipped. A thread that blocks within one probe interval of its last
+  answer, after using less than about 50 µs of CPU, is caught at the next 500 ms check.
 
 ## Contributing
 

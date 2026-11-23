@@ -169,11 +169,12 @@ function HomeScreen() {
 
   useEffect(() => {
     // Lets scripts drive scenarios: rntiexample://scenario/<id>[?delay=<ms>]
+    const delayed: ReturnType<typeof setTimeout>[] = [];
     const run = (url?: string | null) => {
       const id = url?.match(/scenario\/([\w-]+)/)?.[1];
       const delay = Number(url?.match(/[?&]delay=(\d+)/)?.[1] ?? 0);
       const scenario = scenarios.find((s) => s.id === id);
-      if (scenario) setTimeout(() => scenario.run(), delay);
+      if (scenario) delayed.push(setTimeout(() => scenario.run(), delay));
     };
     Linking.getInitialURL().then(run);
     // iOS launch argument: -rntiScenario <id>
@@ -186,6 +187,7 @@ function HomeScreen() {
     return () => {
       sub.remove();
       clearTimeout(timer);
+      delayed.forEach(clearTimeout);
     };
   }, []);
 

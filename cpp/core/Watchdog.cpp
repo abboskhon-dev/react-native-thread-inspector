@@ -136,7 +136,7 @@ void Watchdog::service(Channel &ch, uint64_t now) {
 
   if (!ch.outstanding && now >= ch.nextProbeNs && ch.config.idleProbeNs &&
       now - ch.enqueueNs < ch.config.idleProbeNs && !cpuMoved(ch)) {
-    ch.nextProbeNs = now + ch.config.intervalNs;
+    ch.nextProbeNs = std::min(now + ch.config.intervalNs, ch.enqueueNs + ch.config.idleProbeNs);
     return;
   }
 

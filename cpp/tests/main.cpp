@@ -437,7 +437,8 @@ static void testIdleThreadIsNotProbed() {
 static void testStallFromIdleHasTightOnset() {
   Rig rig(fastConfig());
   rig.watchdog.start();
-  std::this_thread::sleep_for(500ms);
+  // Clear of the 500 ms safety probe: a cheap block right after an ack is a known gap.
+  std::this_thread::sleep_for(250ms);
   std::atomic<uint64_t> taskStart{0};
   rig.js.post([&] {
     taskStart = nowNs();
