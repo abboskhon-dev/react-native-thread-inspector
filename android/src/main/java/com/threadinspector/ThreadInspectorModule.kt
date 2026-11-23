@@ -438,6 +438,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun invalidate() {
     setRemoteSampling(false)
     setJsStacks(false)
+    started = false
+    mainHandler.post { frames?.detach() }
     mainHandler.removeCallbacks(backgroundClose)
     reactApplicationContext.removeLifecycleEventListener(this)
     NativeBridge.jsPoster = null
