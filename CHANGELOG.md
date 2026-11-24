@@ -5,6 +5,11 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+### Changed
+
+- **README says when to use it, next to crash services and profilers** (#56)
+  - The package description now says what it catches and what it saves.
+
 ## 0.4.0 — 2026-11-24
 
 ### Added

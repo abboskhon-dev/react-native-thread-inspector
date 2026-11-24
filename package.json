@@ -1,7 +1,7 @@
 {
   "name": "react-native-thread-inspector",
   "version": "0.4.0",
-  "description": "Local flight recorder for React Native responsiveness",
+  "description": "Local flight recorder for React Native: catches JS and main-thread stalls and saves what each thread was doing before them",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "bin": {
