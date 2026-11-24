@@ -5,6 +5,8 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
+  Animated,
+  Easing,
   Linking,
   Platform,
   Pressable,
@@ -44,6 +46,9 @@ function busyLoop(ms: number) {
   while (Date.now() < end) x += Math.sqrt(x + 1);
   return x;
 }
+
+// Native-driven, so its frames run on the main thread and a main block drops them.
+const spin = new Animated.Value(0);
 
 const scenarios: {
   id: string;
@@ -131,6 +136,25 @@ const scenarios: {
     title: '4. Main thread busy (300 ms)',
     run: () => TI.debug.simulateMainThreadBlock(300),
   },
+  {
+    id: 'main-block-animating',
+    title: '11. Main thread busy during an animation',
+    run: async () => {
+      const loop = Animated.loop(
+        Animated.timing(spin, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      loop.start();
+      await new Promise<void>((r) => setTimeout(() => r(), 500));
+      TI.debug.simulateMainThreadBlock(300);
+      await new Promise<void>((r) => setTimeout(() => r(), 1500));
+      loop.stop();
+    },
+  },
 ];
 
 type Summary = { path: string; text: string };
@@ -205,6 +229,21 @@ function HomeScreen() {
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.h1}>Thread Inspector</Text>
+        <Animated.View
+          style={[
+            styles.spinner,
+            {
+              transform: [
+                {
+                  rotate: spin.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '360deg'],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
         <Text style={styles.small} testID="status">
           {status}
         </Text>
@@ -268,6 +307,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 8,
   },
+  spinner: { width: 24, height: 24, backgroundColor: '#1f4fd1' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: 4, height: 4, margin: 1, backgroundColor: '#9ab' },
   cellAlt: { backgroundColor: '#456' },

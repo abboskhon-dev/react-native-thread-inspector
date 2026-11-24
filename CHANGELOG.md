@@ -5,6 +5,14 @@ release retitles it `## <version> — <date>`.
 
 ## Unreleased
 
+### Added
+
+- **Frame timings on Android** (#53)
+  - Each frame the app's window draws is recorded from `FrameMetrics` on an `rnti.frames` track; frames that miss their deadline are named `frame.slow`.
+  - `start()` reports `frameTimings` as `partial` on Android 8.0+.
+  - Costs about 6 ms of CPU per second while drawing about 73 frames a second on a Galaxy S21, nothing while no frame is drawn.
+  - The example has a `main-block-animating` scenario.
+
 ### Changed
 
 - **The watchdog probes less when the app is idle** (#52)

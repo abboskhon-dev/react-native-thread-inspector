@@ -94,6 +94,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     context.addLifecycleEventListener(this)
     setRemoteSampling(c.optBoolean("remoteSampling", false))
     setJsStacks(c.optBoolean("jsStacks", false))
+    started = true
+    mainHandler.post { frames?.attach(reactApplicationContext.currentActivity) }
 
     return JSONObject().apply {
       put("jsWatchdog", status("available"))
@@ -114,7 +116,11 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
         },
       )
       put("reactRenderTimings", status("unavailable", "production renderer"))
-      put("frameTimings", status("unavailable", "not implemented in this build"))
+      put(
+        "frameTimings",
+        if (frames != null) status("partial", "frames the app window drew (FrameMetrics); not display time, nothing while no frame is drawn")
+        else status("unavailable", "FrameMetrics vsync timestamps need Android 8.0"),
+      )
       put(
         "hermesSamples",
         if (c.optBoolean("jsStacks", false)) status("available", "sampled at about 100 Hz in the foreground; paused during a sampling session")
@@ -176,6 +182,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun stop() {
     setRemoteSampling(false)
     setJsStacks(false)
+    started = false
+    mainHandler.post { frames?.detach() }
     NativeBridge.nativeStop()
   }
 
@@ -283,6 +291,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     return File(parent, prefix + name).also { check(tmp.renameTo(it)) { "cannot finish ${it.name}" } }
   }
 
+  @Volatile private var started = false
   @Volatile private var jsStacks = false
   @Volatile private var foreground = true
   private val windowLock = Any()
@@ -410,6 +419,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   override fun onHostResume() {
     NativeBridge.nativeSetForeground(true)
+    if (started) frames?.attach(reactApplicationContext.currentActivity)
     foreground = true
     mainHandler.removeCallbacks(backgroundClose)
     stacksWorker.execute { openWindow() }
@@ -417,6 +427,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
 
   override fun onHostPause() {
     NativeBridge.nativeSetForeground(false)
+    frames?.detach()
     foreground = false
     // A dialog or a deep link pauses the app for a moment; only a real background stops sampling.
     mainHandler.postDelayed(backgroundClose, BACKGROUND_GRACE_MS)
@@ -427,6 +438,8 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
   override fun invalidate() {
     setRemoteSampling(false)
     setJsStacks(false)
+    started = false
+    mainHandler.post { frames?.detach() }
     mainHandler.removeCallbacks(backgroundClose)
     reactApplicationContext.removeLifecycleEventListener(this)
     NativeBridge.jsPoster = null
@@ -445,6 +458,7 @@ class ThreadInspectorModule(reactContext: ReactApplicationContext) :
     // Chrome trace format, as Hermes dumps it.
     private const val PROFILE_FILE = "hermes.trace.json"
     @Volatile private var maxSessions = DEFAULT_MAX_SESSIONS
+    private val frames = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) FrameTimings() else null
     // Outlives module instances, like the native recorder it names.
     @Volatile private var recorderSessionId: String? = null
 

@@ -61,6 +61,7 @@ internal object NativeBridge {
   @JvmStatic external fun nativeInstant(category: Int, label: Int, arg: Long)
   @JvmStatic external fun nativeComplete(category: Int, label: Int, startNs: Long, durNs: Long, flags: Int, flowId: Long)
   @JvmStatic external fun nativeLongTask(startNs: Long, durNs: Long)
+  @JvmStatic external fun nativeFrame(label: Int, startNs: Long, durNs: Long)
 
   @JvmStatic external fun nativeMarkScreen(label: Int)
 }
