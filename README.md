@@ -10,6 +10,26 @@ user values or route params.
 > Status: research prototype. Validated on a Galaxy S21 (Android 15) and iOS 26/27 simulators with
 > React Native 0.88 (New Architecture, Hermes). Not yet production-proven.
 
+## When to use it
+
+Reach for it when a screen hangs and you cannot reproduce it on demand. Each incident gives you:
+
+- **History before the stall.** The seconds leading up to it, on every instrumented thread, not
+  only the moment it was caught.
+- **Findings labelled by how strong the evidence is.** Spans on the stalled thread are kept apart
+  from async work that only overlapped it, and time nothing explains is reported as unattributed.
+- **Nothing to set up.** No account, no backend.
+
+How it sits next to what you may already run:
+
+- **Sentry, Crashlytics and other crash and performance services:** use it alongside them. They
+  tell you the app hung on a screen, across all users. This tells you what each thread was doing
+  in the seconds before, on one device, and how sure it is.
+- **Profilers (Android Studio, Xcode Instruments, Perfetto, Flashlight):** they need the stall to
+  happen while you record. This is already on when it happens.
+
+What it does not do: no data from your users' devices in one place, no alerting, no crash capture.
+
 ## What a report looks like
 
 A real incident from a Galaxy S21 release build: navigating to a screen with 6,000 views stalled
