@@ -38,7 +38,8 @@ report doesn't overclaim.
   labels as interned static strings so user values can't end up in a trace. Writers never lock
   or wait; readers copy with a sequence check and count what they lose.
 - **Watchdog**: every 100 ms it posts a tiny probe to the JS queue and the main queue. A probe
-  not answered within 200 ms is a stall. It measures *queue delay*, not CPU time.
+  not answered within 200 ms is a stall. It measures *queue delay*, not CPU time. A thread that
+  has used no CPU since its last answer is probed only every 500 ms.
 - **Incident capture**: on the first stall, snapshot the last 5 s of every ring immediately,
   keep recording until recovery plus 1 s, merge the two snapshots, analyze off the hot threads,
   write `incident.json` and a Perfetto-compatible `trace.json`.
@@ -47,9 +48,9 @@ report doesn't overclaim.
 
 ## How it was tested
 
-- 20 C++ tests for the core (rings, watchdog, lifecycle, attribution, loss), run plain and under
-  AddressSanitizer and ThreadSanitizer, 5 repeats.
-- 7 tests for the merge CLI.
+- 30 C++ tests for the core (rings, watchdog, lifecycle, attribution, loss, thread CPU), run plain
+  and under AddressSanitizer and ThreadSanitizer, 5 repeats.
+- 34 tests for the CLI (`pull`, `record`, `merge`, `top`, source maps).
 - Scripted scenarios in the example app on the S21 and the simulators: a 300 ms JS loop, a
   250 ms main-thread block, a synchronous native call, async native work (must *not* stall), app
   backgrounded mid-hang, cold start, and a heavy screen with ~6,000 views.
@@ -169,7 +170,8 @@ Recording itself is cheap; the always-on watchdog is what costs.
   event; per-thread ID blocks brought it to ~7.6 ns.
 - Whole app, S21, idle. All modes use the same APK; the baseline `none` never starts the
   recorder (it is not an SDK-free build). Inspector calls made but recorder off: +0.4 ms/s CPU
-  [−0.4, +1.5], nothing measurable. Recorder on: +20–26 ms/s across runs, about 2–2.6% of one core.
+  [−0.4, +1.5], nothing measurable. Recorder on, probing every 100 ms: +20–26 ms/s across runs,
+  about 2–2.6% of one core.
   RSS +1.0–1.5 MB. Hermes sampling: +110 ms/s while active.
 - Where the idle cost comes from: a `record` mode with the same recorder config but probes only
   once an hour cost +0.7 ms/s [−1.4, +2.4] vs `none`; the same run's `core` (probing every 100 ms)
@@ -182,8 +184,19 @@ Recording itself is cheap; the always-on watchdog is what costs.
   landed in the same state differed by 4–19 ms/s (≤1.3%), but four reps can't establish that.
   Resolving it needs cool-downs, logged CPU frequency/thermal state and more reps.
 
-The "under 1% overhead" target from the original plan is not met at idle, and the cause is now
-known: probing. Adaptive probing (back off when nothing happens) is the obvious next step.
+- Adaptive probing (#52): skip a probe while the thread has used no CPU since its last answer,
+  and still probe at least every 500 ms. Idle cost vs `none`: **+6.0 ms/s [+4.1, +7.5]** (8 paired
+  reps), down from about +17 ms/s in the same setup just before. JS was probed about 2.7 times a
+  second instead of 10. Stalls started from 10 s idle were still caught, with onset late by at
+  most one 50 ms interval. Android's main thread never goes idle (React Native's per-vsync
+  callback), so its probes are not skipped.
+- `jsStacks: true` (#41): +61 ms/s [+53, +66] at idle, about 6% of one core (5 reps). The sampler
+  keeps the JS thread busy, so JS probes are not skipped either. No measurable change while active.
+- Frame timings (#53): about 6 ms/s on the `rnti.frames` thread while drawing about 73 frames a
+  second, nothing while no frame is drawn.
+
+The "under 1% overhead" target from the original plan is now met at idle with the default
+options: 6 ms/s is 0.6% of one core. It is not met with `jsStacks: true`.
 
 ## What the tool cannot tell you
 
@@ -207,7 +220,8 @@ known: probing. Adaptive probing (back off when nothing happens) is the obvious 
 
 ## Open questions
 
-- Adaptive probing: how low can idle cost go without missing short stalls?
+- Can Android's main thread be treated as idle between frames (an ALooper-based check), so its
+  probes are skipped too?
 - Can Android's `ProfilingManager` be triggered from an incident to get real system scheduling
   data for the same window?
 - Does the iOS method-name issue reproduce on current React Native `main`, and should it be

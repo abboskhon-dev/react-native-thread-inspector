@@ -10,6 +10,10 @@ release retitles it `## <version> — <date>`.
 - **README says when to use it, next to crash services and profilers** (#56)
   - The package description now says what it catches and what it saves.
 
+### Internal
+
+- RESEARCH.md has the overhead after adaptive probing, `jsStacks` and frame timings (#58).
+
 ## 0.4.0 — 2026-11-24
 
 ### Added
